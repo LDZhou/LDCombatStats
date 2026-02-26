@@ -157,7 +157,7 @@ function Core:OnInitialize()
         C_Timer.After(2, function()
             local possibleCVars = {
                 "damageMeterAutoReset",
-                "damageMeterResetOnInstance",
+                "damageMeterResetOnNewInstance",
                 "autoClearDamageMeter",
                 "damageMeterAutoClear",
                 -- ★ 新增：只要插件加载，自动将系统设置中的“原生伤害统计”设为关闭(0)
