@@ -153,13 +153,15 @@ function Core:OnInitialize()
         end)
         ns:StartSmartRefresh()
         
-        -- ★ 自动关闭暴雪统计的自动重置功能，避免误删数据
+        -- ★ 自动关闭暴雪原生统计及其自动重置功能，避免双面板重叠及误删数据
         C_Timer.After(2, function()
             local possibleCVars = {
                 "damageMeterAutoReset",
                 "damageMeterResetOnInstance",
                 "autoClearDamageMeter",
-                "damageMeterAutoClear"
+                "damageMeterAutoClear",
+                -- ★ 新增：只要插件加载，自动将系统设置中的“原生伤害统计”设为关闭(0)
+                "damageMeterEnabled" 
             }
             local setter = (C_CVar and C_CVar.SetCVar) or SetCVar
             for _, cvar in ipairs(possibleCVars) do
