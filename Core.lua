@@ -168,7 +168,7 @@ function Core:OnInitialize()
             end
         end)
 
-        print("|cff00ccff[Light Damage Combat Stats]|r v" .. ns.version .. L[" 已加载 | /ldcs show · /ldcs help"])
+        -- print("|cff00ccff[Light Damage Combat Stats]|r v" .. ns.version .. L[" 已加载 | /ldcs show · /ldcs help"])
     end
 
     local events = {
@@ -438,7 +438,6 @@ function ns:HandleSlashCommand(msg)
         print(L["  /ldcs reset   - 重置所有数据"])
         print(L["  /ldcs config  - 配置面板"])
         print(L["  /ldcs lock    - 锁定/解锁窗口"])
-        print(L["  /ldcs report [n] - 报告前N名到聊天频道"])
 
     elseif msg == "show" or msg == "toggle" then
         if ns.UI then ns.UI:Toggle() end
@@ -461,9 +460,6 @@ function ns:HandleSlashCommand(msg)
             print("|cff00ccff[Light Damage Combat Stats]|r " .. L["已解锁"]) 
         end
 
-    elseif msg:match("^report") then
-        local n = tonumber(msg:match("report%s+(%d+)")) or 5
-        ns:ReportToChat(n)
 
     -- ============================================================
     -- 隐藏开发者命令 (不在 help 显示)
@@ -591,40 +587,6 @@ function ns:PrintDebugInfo()
     if ns.UI then print("  UI visible:", ns.UI:IsVisible()) end
 end
 
--- ============================================================
--- 聊天报告
--- ============================================================
-function ns:ReportToChat(count)
-    local data = ns:GetDisplayData()
-    if not data or #data == 0 then
-        print(L["|cff00ccff[Light Damage Combat Stats]|r 无数据"])
-        return
-    end
-
-    local modeNames = {
-        damage=L["伤害"], healing=L["治疗"], damageTaken=L["承伤"],
-        deaths=L["死亡"], interrupts=L["打断"], dispels=L["驱散"],
-    }
-    local mode     = ns.db.display.mode
-    local seg      = ns.Segments and ns.Segments:GetViewSegment()
-    local duration = seg and seg.duration or 0
-    if seg and seg.isActive then duration = GetTime() - seg.startTime end
-
-    local header = string.format("[Light Damage Combat Stats] %s (%s)",
-        modeNames[mode] or mode, ns:FormatTime(duration))
-
-    local ch   = IsInRaid() and "RAID" or IsInGroup() and "PARTY" or nil
-    local send = ch and function(m) SendChatMessage(m, ch) end
-                    or function(m) print(m) end
-
-    send(header)
-    for i = 1, math.min(count, #data) do
-        local d  = data[i]
-        local ps = duration > 0 and (d.value / duration) or 0
-        send(string.format("%d. %s: %s (%.1f/s, %.0f%%)",
-            i, ns:DisplayName(d.name), ns:FormatNumber(d.value), ps, d.percent or 0)) -- ★ 使用DisplayName
-    end
-end
 
 -- ============================================================
 -- 获取当前显示数据

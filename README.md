@@ -1,145 +1,16 @@
-# LD Combat Stats v2.0 — WoW 12.0 Midnight 高级战斗统计
+# Light Damage Combat Stats
+A lightweight combat tracker for World of Warcraft. Designed to show all essential combat data in a single window without the need for multiple frames.
 
-## 设计理念: 一个窗口看所有信息
+## Core Features
+* **Comprehensive Tracking:** Tracks Damage Done, Healing, Damage Taken, Deaths, Interrupts, and Dispels.
+* **Single Window Split-View:** Display Damage and Healing (or any two metrics) simultaneously in one window. No need to set up multiple frames.
+* **Dual Display:** View your current fight and overall dungeon data side-by-side automatically.
+* **Detailed Breakdowns:** Left-click any player to see their spell breakdown.
+* **Death Analysis:** Detailed death logs.
+* **Clean Settings:** Simple, categorized, and easy-to-use configuration panel.
 
-不像 Details! 需要开两个窗口才能同时看伤害和治疗，LD Stats 用**分栏视图**在一个窗口内完成所有展示。
-
-## 与 Details! 功能对比
-
-| 功能 | Details! | LD Stats v2 | 备注 |
-|------|---------|-------------|------|
-| DPS/HPS/DTPS | ✅ | ✅ | |
-| **伤害+治疗同屏** | ❌ 需开2个窗口 | ✅ 分栏视图 | 核心优势 |
-| **M+ 当前+总计同屏** | ❌ 需开2个窗口 | ✅ 标题栏+第二行 | 核心优势 |
-| **智能刷新** | ❌ 固定频率 | ✅ 战斗/脱战/空闲三档 | 核心优势 |
-| **清晰设置面板** | ❌ 菜单嵌套混乱 | ✅ 左侧标签页分类 | 核心优势 |
-| 技能细分 | ✅ | ✅ | 命中/暴击/最高/最低/平均 |
-| 死亡日志 | ✅ | ✅ | HP时间线+致命技能+过量击杀 |
-| 打断/驱散统计 | ✅ | ✅ | |
-| 宠物合并 | ✅ | ✅ | |
-| Boss段管理 | ✅ | ✅ | |
-| 12.0 兼容 | ⚠️ 适配中 | ✅ | pcall + C_DamageMeter回退 |
-| 自定义插件/图表 | ✅ | ❌ | Details!独有 |
-| WCL整合 | ✅ | ❌ | Details!独有 |
-
-## 窗口布局
-
-### 分栏模式 (默认)
-```
-┌────────────────────────────────────────┐
-│ [◀][▶] Boss名  0:45  DPS:45K  [↺][⚙][X]│
-│ 全程 3:20 | DPS 42K | HPS 28K | DTPS 8K │  ← M+时自动出现
-├── ⚔ 伤害 ────────── 团队DPS: 45K  [▾] ──┤  ← 点击折叠
-│ 1. Mage       ██████████  1.2M  35%     │
-│ 2. Rogue      ████████    890K  26%     │
-│ 3. Hunter     ███████     720K  21%     │
-│ 4. Warlock    █████       580K  17%     │
-│ 5. DeathKnight████        430K  13%     │
-├── ✚ 治疗 ────────── 团队HPS: 28K  [▾] ──┤  ← 点击折叠
-│ 1. Priest     ██████████  890K  52%     │
-│ 2. Druid      ████████    620K  36%     │
-│ 3. Paladin    █████       200K  12%     │
-├──────────────────────────────────────────┤
-│ 伤害│治疗│承伤│死亡│打断│驱散│  ◫分栏   │
-└──────────────────────────────────────────┘
-```
-
-- 主栏/副栏的模式和行数都可以在设置中配置
-- 栏头点击可折叠 (只想看伤害时折叠治疗栏)
-- 鼠标悬停任何人: Tooltip同时显示另一栏的数据
-
-### 单栏模式
-点击右下角 ◫ 切换到单栏，和传统Details!一样用底部标签切换模式。
-
-## 设置面板 (清晰分类)
-
-`/ldcs config` 或点击标题栏 ⚙ 打开：
-
-```
-┌─────────────────────────────────────────┐
-│  LD Combat Stats v2.0 设置          [X] │
-├──────────┬──────────────────────────────┤
-│          │                              │
-│  ◫ 布局  │  分栏/单栏模式切换          │
-│          │  主栏: 伤害/治疗/承伤        │
-│  ◈ 数据  │  副栏: 伤害/治疗/承伤        │
-│          │  主栏行数 / 副栏行数          │
-│  ⚔ 大秘境│                              │
-│          │                              │
-│  ◉ 外观  │                              │
-│          │                              │
-│  ⚡ 性能  │                              │
-│          │                              │
-└──────────┴──────────────────────────────┘
-```
-
-5个标签页，每页只有相关选项，不再像Details!一样层层嵌套。
-
-| 标签 | 内容 |
-|------|------|
-| **布局** | 分栏/单栏切换，主副栏模式选择，行数 |
-| **数据** | DPS/百分比/排名显示，宠物合并，死亡日志条数 |
-| **大秘境** | M+自适应开关，全程汇总栏，Boss分段，12.0兼容 |
-| **外观** | 窗口透明度/缩放/条高度/锁定 |
-| **性能** | 战斗/脱战刷新频率，最大段数 |
-
-## 核心特性
-
-### 智能刷新
-- 战斗中: 0.3s (可调 0.1-1.0s) — DPS数字实时跳动
-- 脱战后: 2.0s (可调 0.5-5.0s) — 节省CPU
-- 窗口隐藏/无数据: 完全不刷新
-
-### M+单面板双显示
-- 标题栏: 当前段名称 + 时间 + DPS
-- 第二行 (M+自动出现): 全程 DPS / HPS / DTPS
-- Tooltip: 悬停任何人同时看到全程数据
-- 进入M+自动重置，Boss自动分段
-
-### 死亡分析
-死亡标签列出所有死亡事件，点击展开：
-- 死亡前15条受伤/受治事件链
-- HP进度条 (直观看到血条掉落过程)
-- 致命一击 ☠ 标红，显示过量击杀
-- 底部汇总: 总受伤 / 总受治 / 时间跨度
-
-### 技能细分
-左键点击任何人打开详情：
-- 所有技能按贡献排序
-- Tooltip: 命中/暴击/暴击率/最高/最低/平均
-- 宠物技能绿色标识
-
-## 命令
-
-| 命令 | 说明 |
-|------|------|
-| `/ldcs show` | 显示/隐藏 |
-| `/ldcs config` | 设置面板 |
-| `/ldcs reset` | 重置数据 |
-| `/ldcs d/h/t/death/int/disp` | 切换模式 |
-| `/ldcs lock` | 锁定窗口 |
-| `/ldcs report 5` | 报告前5名 |
-| `/ldcs segment 0` | 查看总计段 |
-
-## 操作
-
-| 操作 | 效果 |
-|------|------|
-| 拖拽标题栏 | 移动窗口 |
-| 右下角手柄 | 调整大小 |
-| ◀ ▶ | 切换段落 |
-| 栏头 [▾] | 折叠/展开该栏 |
-| 底部标签 | 切换模式 |
-| 右下 ◫ | 切换分栏/单栏 |
-| 左键数据条 | 技能细分/死亡详情 |
-| 右键数据条 | 快速切换模式 |
-
-## 安装
-
-解压到 `World of Warcraft/_retail_/Interface/AddOns/LDCombatStats/`
-
-## 12.0 兼容
-
-- 所有CLEU解析 pcall 保护
-- 副本中自动回退暴雪 C_DamageMeter API
-- 纯展示设计，不含战斗决策逻辑
+## Slash Commands
+* `/ldcs` - Open the settings panel
+* `/ldcs show` - Toggle window visibility
+* `/ldcs reset` - Reset all combat data
+* `/ldcs lock` - Lock or unlock the window frame
