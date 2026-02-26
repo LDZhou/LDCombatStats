@@ -42,12 +42,20 @@ ns.SCHOOL_COLORS = {
 }
 
 -- 格式化数字
--- In Utils.lua
 function ns:FormatNumber(num)
     if not num or num == 0 then return "0" end
     local abs = math.abs(num)
     
-    if GetLocale() == "zhCN" or GetLocale() == "zhTW" then
+    -- 动态获取当前插件实际使用的语言
+    local lang = ns.currentLang
+    if not lang or lang == "auto" then
+        lang = (ns.db and ns.db.display and ns.db.display.language) or "auto"
+    end
+    if lang == "auto" then
+        lang = GetLocale()
+    end
+
+    if lang == "zhCN" or lang == "zhTW" then
         if abs >= 1e8 then return string.format("%.2f亿", num / 1e8)
         elseif abs >= 1e4 then return string.format("%.2f万", num / 1e4)
         else return string.format("%.0f", num) end

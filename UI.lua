@@ -1115,7 +1115,8 @@ function UI:RefreshHead(h, mode, seg, dur, apiSessionType)
         else
             total = mode=="damage" and seg.totalDamage or mode=="healing" and seg.totalHealing or mode=="damageTaken" and seg.totalDamageTaken or 0
         end
-        local valStr = COUNT_MODES[mode] and (AbbreviateNumbers(total)..L["次"]) or AbbreviateNumbers(total)
+        -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
+        local valStr = COUNT_MODES[mode] and (ns:FormatNumber(total)..L["次"]) or ns:FormatNumber(total)
         h.info:SetText(string.format(L["团队总%s: %s"], mn, valStr))
     elseif apiSessionType then
         local dmType = MODE_TO_DM[mode]
@@ -1402,19 +1403,22 @@ end
 function UI:MakeValueStr(value, dur, mode, perSec)
     local vStr = ""
     if COUNT_MODES[mode] then
-        vStr = AbbreviateNumbers(value) .. L["次"]
+        -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
+        vStr = ns:FormatNumber(value) .. L["次"]
     else
         if ns.db.display.showPerSecond then
-            -- ★ 优先用暴雪存的 perSec（活跃时间口径），没有才退回自己除
+
             local ps = (perSec and perSec > 0) and perSec
                        or (dur and dur > 0 and (value / dur) or nil)
             if ps then
-                vStr = string.format("%s(%s)", AbbreviateNumbers(value), AbbreviateNumbers(ps))
+                -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
+                vStr = string.format("%s(%s)", ns:FormatNumber(value), ns:FormatNumber(ps))
             else
-                vStr = AbbreviateNumbers(value)
+                vStr = ns:FormatNumber(value)
             end
         else
-            vStr = AbbreviateNumbers(value)
+            -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
+            vStr = ns:FormatNumber(value)
         end
     end
     return vStr
