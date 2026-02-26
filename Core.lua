@@ -428,7 +428,11 @@ end
 function ns:HandleSlashCommand(msg)
     msg = (msg or ""):lower():trim()
 
-    if msg == "" or msg == "help" then
+    if msg == "" then
+        -- 如果只输入了 /ldcs，直接打开设置面板
+        if ns.Config then ns.Config:Toggle() end
+
+    elseif msg == "help" then
         print(L["|cff00ccff[Light Damage Combat Stats]|r 命令:"])
         print(L["  /ldcs show    - 显示/隐藏窗口"])
         print(L["  /ldcs reset   - 重置所有数据"])
