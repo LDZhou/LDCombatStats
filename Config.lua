@@ -92,7 +92,7 @@ local CAT_H     = 34
 local categories = {
     {id="layout", labelKey="布局",   icon="-"},
     {id="data",   labelKey="数据",   icon="-"},
-    {id="mplus",  labelKey="大秘境", icon="-"},
+    {id="mplus",  labelKey="副本", icon="-"},
     {id="look",   labelKey="外观",   icon="-"},
     {id="perf",   labelKey="性能",   icon="-"},
     {id="profiles", labelKey="配置管理", icon="-"},
