@@ -593,10 +593,16 @@ function Config:BuildLookPage()
 
     -- ── 数据条外观 ─────────────────────────────────────────────
     y = y - 12; y = self:H(inner, L["数据条外观"], y)
-    y = self:Slider(inner, L["数据条高度"], y, 10, 30, 1,
+    y = self:Slider(inner, L["排版行高 (文字/图标区域)"], y, 10, 30, 1,
         function() return ns.db.display.barHeight end,
         function(v) ns.db.display.barHeight=v; self:RefreshUI() end)
-    y = self:Slider(inner, L["数据条间距 (行高)"], y, 0, 10, 1,
+    y = self:Slider(inner, L["颜色条实际粗细"], y, 1, 30, 1,
+        function() return ns.db.display.barThickness or ns.db.display.barHeight or 19 end,
+        function(v) ns.db.display.barThickness=v; self:RefreshUI() end)
+    y = self:Slider(inner, L["颜色条垂直偏移 (从底向上)"], y, 0, 30, 1,
+        function() return ns.db.display.barVOffset or 0 end,
+        function(v) ns.db.display.barVOffset=v; self:RefreshUI() end)
+    y = self:Slider(inner, L["数据条间距"], y, 0, 10, 1,
         function() return ns.db.display.barGap or 1 end,
         function(v) ns.db.display.barGap=v; self:RefreshUI() end)
     y = self:Slider(inner, L["数据条透明度"], y, 0.1, 1.0, 0.05,

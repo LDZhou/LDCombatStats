@@ -33,6 +33,8 @@ ns.defaults = {
         classColors   = true,
         -- ★ 新增和完善的外观默认项
         barHeight     = 19,
+        barThickness  = 19,
+        barVOffset    = 0,
         barGap        = 1,
         barAlpha      = 0.85, -- 透明度默认调高，解决太淡的问题
         barTexture    = "Interface\\Buttons\\WHITE8X8",

@@ -787,27 +787,36 @@ function UI:DoLayout(retryCount)
 end
 
 function UI:AnchorBarTexts(bar)
-    local iconSize = (ns.db.display.barHeight or 18) - 4
+    local rowH = ns.db.display.barHeight or 18
+    local iconSize = rowH - 4
     
+    -- 读取新的厚度和偏移量配置（如果没有设置旧配置兜底，则默认填满整行）
+    local thickness = ns.db.display.barThickness or rowH
+    local vOffset   = ns.db.display.barVOffset or 0
+
     if ns.db.display.showSpecIcon then
         bar.specIcon:SetSize(iconSize, iconSize)
         bar.specIcon:ClearAllPoints()
         bar.specIcon:SetPoint("LEFT", bar.frame, "LEFT", 2, 0)
         
-        -- ★ 将进度条背景、填充和文字框架整体向右平移，完全避开图标的覆盖区域
         local offset = iconSize + 6
+        
+        -- ★ 背景、填充、状态条改为由 BOTTOMLEFT 和 SetHeight 决定，实现解绑
         bar.bg:ClearAllPoints()
-        bar.bg:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0)
-        bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
+        bar.bg:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+        bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+        bar.bg:SetHeight(thickness)
 
         bar.fill:ClearAllPoints()
-        bar.fill:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0)
-        bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, 0)
+        bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+        bar.fill:SetHeight(thickness)
 
         bar.statusbar:ClearAllPoints()
-        bar.statusbar:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0)
-        bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
+        bar.statusbar:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+        bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+        bar.statusbar:SetHeight(thickness)
 
+        -- 文字框依然充满整行高度，保证文字/点击区域垂直居中不变
         bar.textFrame:ClearAllPoints()
         bar.textFrame:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0)
         bar.textFrame:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
@@ -815,16 +824,20 @@ function UI:AnchorBarTexts(bar)
         bar.specIcon:Hide()
 
         bar.bg:ClearAllPoints()
-        bar.bg:SetAllPoints(bar.frame)
+        bar.bg:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset)
+        bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+        bar.bg:SetHeight(thickness)
 
         bar.fill:ClearAllPoints()
-        bar.fill:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", 0, 0)
-        bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, 0)
+        bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset)
+        bar.fill:SetHeight(thickness)
 
         bar.statusbar:ClearAllPoints()
-        bar.statusbar:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", 0, 0)
-        bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
+        bar.statusbar:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset)
+        bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+        bar.statusbar:SetHeight(thickness)
 
+        -- 文字框依然充满整行高度
         bar.textFrame:ClearAllPoints()
         bar.textFrame:SetAllPoints(bar.frame)
     end

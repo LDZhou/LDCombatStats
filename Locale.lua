@@ -270,6 +270,9 @@ local L_zhCN = {
     ["%s 0:00  |  Damage 0  Heal 0"] = "%s 0:00  |  Damage 0  Heal 0",
 
     ["OVERALL_DATA_TOOLTIP"] = "关于“总计”数据：\n 统计起点： 每次进入或离开副本时重新开始。\n 显示内容： 自起点起累积的所有战斗汇总。\n 请注意： 手动删除某段具体的战斗记录，不会影响总计数据。",
+    ["排版行高 (文字/图标区域)"] = "排版行高 (文字/图标区域)",
+    ["颜色条实际粗细"] = "颜色条实际粗细",
+    ["颜色条垂直偏移 (从底向上)"] = "颜色条垂直偏移 (从底向上)",
 }
 
 -- 2. 繁体中文
@@ -537,6 +540,9 @@ local L_zhTW = {
     ["%s 0:00  |  Damage 0  Heal 0"] = "%s 0:00  |  Damage 0  Heal 0",
 
     ["OVERALL_DATA_TOOLTIP"] = "關於「總計」數據：\n 統計起點： 每次進入或離開副本時重新開始。\n 顯示內容： 自起點起累積的所有戰鬥彙總。\n 請注意： 手動刪除某段具體的戰鬥紀錄，不會影響總計數據。",
+    ["排版行高 (文字/图标区域)"] = "排版行高 (文字/圖示區域)",
+    ["颜色条实际粗细"] = "顏色條實際粗細",
+    ["颜色条垂直偏移 (从底向上)"] = "顏色條垂直偏移 (從底向上)",
 }
 
 -- 3. 英文
@@ -804,6 +810,9 @@ local L_enUS = {
     ["%s 0:00  |  Damage 0  Heal 0"] = "%s 0:00  |  Damage 0  Heal 0",
 
     ["OVERALL_DATA_TOOLTIP"] = "About 'Overall' Data:\n Starting Point: Resets each time you enter or leave an instance.\n Content: Accumulates all combat data from the starting point.\n Note: Manually deleting a specific combat segment does not affect the overall data.",
+    ["排版行高 (文字/图标区域)"] = "Layout Row Height (Text/Icon Area)",
+    ["颜色条实际粗细"] = "Bar Actual Thickness",
+    ["颜色条垂直偏移 (从底向上)"] = "Bar Vertical Offset (Bottom-Up)",
 }
 
 -- 把三种语言包存到 ns 里，方便后续调用
