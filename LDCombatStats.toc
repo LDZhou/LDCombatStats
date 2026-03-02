@@ -3,7 +3,7 @@
 ## Notes: Combat Statistics
 ## Notes-zhCN: 战斗统计插件
 ## Author: Yishi
-## Version: 1.0
+## Version: 1.1.1
 ## SavedVariables: LDCombatStatsGlobal
 ## SavedVariablesPerCharacter: LDCombatStatsDB
 ## Category: Combat

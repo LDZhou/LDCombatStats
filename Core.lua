@@ -5,7 +5,7 @@
 local addonName, ns = ...
 local L = ns.L
 
-ns.version   = "1.0"
+ns.version   = "1.1.1"
 ns.addonName = addonName
 
 local Core = CreateFrame("Frame")
