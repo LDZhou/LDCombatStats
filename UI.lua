@@ -1501,6 +1501,9 @@ function UI:FillDeathBars(seg, bars, listObj)
     self:UpdateScrollState(listObj, count)
     local cw = listObj.child:GetWidth()
     local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
+    
+    -- ★ 新增：暴雪官方的职业图标兜底表
+    local CLASS_ICONS = { WARRIOR = 132355, PALADIN = 135490, HUNTER = 132222, ROGUE = 132320, PRIEST = 135940, DEATHKNIGHT = 135771, SHAMAN = 135962, MAGE = 135932, WARLOCK = 136145, MONK = 608951, DRUID = 132115, DEMONHUNTER = 1260827, EVOKER = 4567212 }
 
     if #items == 0 then
         for _, bar in ipairs(bars) do bar.frame:Hide() end
@@ -1522,6 +1525,7 @@ function UI:FillDeathBars(seg, bars, listObj)
         bar.name:SetText(L["|cff555555本段暂无死亡记录|r"])
         bar.name:SetTextColor(1, 1, 1)
         bar.value:SetText("")
+        if bar.specIcon then bar.specIcon:Hide() end -- ★ 修复：空数据时隐藏残留图标
         bar.frame:Show()
         return
     end
@@ -1549,6 +1553,7 @@ function UI:FillDeathBars(seg, bars, listObj)
                 bar.name:SetText(item.label .. string.format(" |cff666666(%d)|r", item.count))
                 bar.name:SetTextColor(1, 1, 1)
                 bar.value:SetText("")
+                if bar.specIcon then bar.specIcon:Hide() end -- ★ 修复：分割线隐藏残留图标
             else
                 local d = item.d
                 bar._data     = d
@@ -1559,13 +1564,47 @@ function UI:FillDeathBars(seg, bars, listObj)
                 bar.fill:SetWidth(cw)
                 bar.rank:SetText("|cff888888" .. (d.timestamp and date("%H:%M", d.timestamp) or "--:--") .. "|r")
                 local cc = ns:GetClassColor(d.playerClass)
-                bar.name:SetText(ns:DisplayName(d.playerName or "?")) -- ★ 使用DisplayName
+                bar.name:SetText(ns:DisplayName(d.playerName or "?"))
                 bar.name:SetTextColor(cc[1], cc[2], cc[3])
                 local killStr = "|cffff5555" .. (d.killingAbility or "?") .. "|r"
                 if d.killerName and d.killerName ~= "" and d.killerName ~= "?" then
-                    killStr = killStr .. " |cff888888by |r|cffcccccc" .. ns:DisplayName(d.killerName) .. "|r" -- ★ 使用DisplayName
+                    killStr = killStr .. " |cff888888by |r|cffcccccc" .. ns:DisplayName(d.killerName) .. "|r"
                 end
                 bar.value:SetText(killStr)
+                
+                -- ★ 修复：为死亡玩家匹配正确的专精图标
+                if bar.specIcon then
+                    local icon = nil
+                    local guid = d.playerGUID
+                    local specID = nil
+                    
+                    -- 1. 从缓存中获取队友的专精
+                    local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[guid] or {}
+                    specID = cache.specID
+                    
+                    -- 2. 如果死的是自己，实时获取最新专精
+                    if guid == ns.state.playerGUID then
+                        local specIdx = GetSpecialization()
+                        if specIdx then specID = GetSpecializationInfo(specIdx) end
+                    end
+                    
+                    -- 3. 获取图标ID
+                    if specID then 
+                        _, _, _, icon = GetSpecializationInfoByID(specID) 
+                    end
+                    
+                    -- 4. 兜底逻辑：如果在战斗中等情况没扫到专精，用基础职业图标代替
+                    if not icon and d.playerClass then 
+                        icon = CLASS_ICONS[d.playerClass] 
+                    end
+
+                    if ns.db.display.showSpecIcon and icon then
+                        bar.specIcon:SetTexture(icon)
+                        bar.specIcon:Show()
+                    else
+                        bar.specIcon:Hide()
+                    end
+                end
             end
             bar.frame:Show()
         else
