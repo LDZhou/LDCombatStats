@@ -1,5 +1,5 @@
 ## Interface: 120001
-## Title: Light Damage Combat Stats
+## Title: Light Damage
 ## Notes: Combat Statistics
 ## Notes-zhCN: 战斗统计插件
 ## Author: Yishi
@@ -7,6 +7,7 @@
 ## SavedVariables: LDCombatStatsGlobal
 ## SavedVariablesPerCharacter: LDCombatStatsDB
 ## Category: Combat
+## IconTexture: Interface\AddOns\LDCombatStats\Textures\logo.tga
 
 Locale.lua
 Core.lua

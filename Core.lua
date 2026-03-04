@@ -1,5 +1,5 @@
 --[[
-    Light Damage Combat Stats - Core.lua
+    Light Damage - Core.lua
 ]]
 
 local addonName, ns = ...
@@ -224,7 +224,7 @@ function Core:OnInitialize()
             ns.Segments:Init()
             ns:LoadSessionHistory()
         else
-            print(L["|cffff3333[Light Damage Combat Stats] ERROR:|r Segments 模块未加载"])
+            print(L["|cffff3333[Light Damage] ERROR:|r Segments 模块未加载"])
             return
         end
 
@@ -530,7 +530,7 @@ function ns:HandleSlashCommand(msg)
         if ns.Config then ns.Config:Toggle() end
 
     elseif msg == "help" then
-        print(L["|cff00ccff[Light Damage Combat Stats]|r 命令:"])
+        print(L["|cff00ccff[Light Damage]|r 命令:"])
         print(L["  /ldcs show    - 显示/隐藏窗口"])
         print(L["  /ldcs reset   - 重置所有数据"])
         print(L["  /ldcs config  - 配置面板"])
@@ -542,7 +542,7 @@ function ns:HandleSlashCommand(msg)
     elseif msg == "reset" then
         if ns.Segments then ns.Segments:ResetAll() end
         if ns.db then ns.db.savedHistory = nil end
-        print(L["|cff00ccff[Light Damage Combat Stats]|r 数据已重置"])
+        print(L["|cff00ccff[Light Damage]|r 数据已重置"])
 
     elseif msg == "config" then
         if ns.Config then ns.Config:Toggle() end
@@ -552,9 +552,9 @@ function ns:HandleSlashCommand(msg)
         if ns.UI then ns.UI:UpdateLock() end
         -- 避免拼接陷阱，这里直接用条件判断输出完整的翻译句子
         if ns.db.window.locked then
-            print(L["|cff00ccff[Light Damage Combat Stats]|r 已锁定"])
+            print(L["|cff00ccff[Light Damage]|r 已锁定"])
         else
-            print("|cff00ccff[Light Damage Combat Stats]|r " .. L["已解锁"]) 
+            print("|cff00ccff[Light Damage]|r " .. L["已解锁"]) 
         end
 
 
@@ -586,7 +586,7 @@ function ns:HandleSlashCommand(msg)
             if ns.Segments then
                 ns.Segments.overall = ns.Segments:NewSegment("overall", L["总计"])
             end
-            print(L["|cff00ccff[Light Damage Combat Stats]|r Baseline 已手动重置"])
+            print(L["|cff00ccff[Light Damage]|r Baseline 已手动重置"])
         end
     elseif msg == "debug" then
         ns:PrintDebugInfo()
@@ -619,7 +619,7 @@ function ns:HandleSlashCommand(msg)
 end
 
 function ns:DebugDeathRecapIDs()
-    print(L["=== [Light Damage Combat Stats] 死亡 RecapID 诊断 ==="])
+    print(L["=== [Light Damage] 死亡 RecapID 诊断 ==="])
     local sessions = C_DamageMeter.GetAvailableCombatSessions()
     local n = sessions and #sessions or 0
     print(string.format(L["共 %d 个 session"], n))
@@ -650,7 +650,7 @@ end
 -- 调试信息
 -- ============================================================
 function ns:PrintDebugInfo()
-    print("|cff00ccff[Light Damage Combat Stats Debug]|r")
+    print("|cff00ccff[Light Damage Debug]|r")
     print("  initialized:", Core._initialized)
     print("  inCombat:", ns.state.inCombat)
     print("  UnitAffectingCombat:", UnitAffectingCombat("player"))
@@ -885,14 +885,14 @@ function ns:LoadSessionHistory()
 end
 
 function ns:DebugRecapFields()
-    if not C_DeathRecap then print(L["[Light Damage Combat Stats] C_DeathRecap 不存在"]); return end
+    if not C_DeathRecap then print(L["[Light Damage] C_DeathRecap 不存在"]); return end
     if not C_DeathRecap.HasRecapEvents or not C_DeathRecap.HasRecapEvents() then
-        print(L["[Light Damage Combat Stats] 没有死亡记录，先死一次"]); return
+        print(L["[Light Damage] 没有死亡记录，先死一次"]); return
     end
     local events = C_DeathRecap.GetRecapEvents and C_DeathRecap.GetRecapEvents()
-    if not events or #events == 0 then print(L["[Light Damage Combat Stats] 返回空"]); return end
+    if not events or #events == 0 then print(L["[Light Damage] 返回空"]); return end
     local maxHP = C_DeathRecap.GetRecapMaxHealth and C_DeathRecap.GetRecapMaxHealth()
-    print(string.format(L["[Light Damage Combat Stats] maxHealth=%s 共%d条，打印前3条字段:"], tostring(maxHP), #events))
+    print(string.format(L["[Light Damage] maxHealth=%s 共%d条，打印前3条字段:"], tostring(maxHP), #events))
     for i = 1, math.min(3, #events) do
         local ev = events[i]
         print(string.format("  [%d]:", i))
@@ -932,7 +932,7 @@ function ns:SwitchProfile(name)
     end
     
     local displayName = (name == "默认") and L["默认"] or name
-    print(L["|cff00ccff[Light Damage Combat Stats]|r 已应用 "] .. displayName .. L["的配置"])
+    print(L["|cff00ccff[Light Damage]|r 已应用 "] .. displayName .. L["的配置"])
 
     -- 3. 如果发现语言不一致，直接触发重载
     if oldLang ~= newLang then
@@ -969,7 +969,7 @@ function ns:RenameProfile(oldName, newName)
         LDCombatStatsDB.activeProfile = newName
         if ns.Config and ns.Config.RefreshTitle then ns.Config:RefreshTitle() end
     end
-    print(L["|cff00ccff[Light Damage Combat Stats]|r 配置已重命名为 "] .. newName)
+    print(L["|cff00ccff[Light Damage]|r 配置已重命名为 "] .. newName)
     return true
 end
 
