@@ -349,7 +349,7 @@ function Config:BuildLayoutPage()
     
     -- 区域1：语言
     local sec1 = CreateFrame("Frame", nil, inner)
-    sec1:SetWidth(PANEL_W)
+    sec1:SetWidth(inner:GetWidth())
     local y1 = 0
     y1 = self:H(sec1, L["界面语言"], y1)
     y1 = self:Dropdown(sec1, L["语言 (需要重载UI生效)"], y1, { {l=L["跟随客户端"], v="auto"}, {l="简体中文", v="zhCN"}, {l="繁体中文", v="zhTW"}, {l="English", v="enUS"} }, function() return ns.db.display.language or "auto" end, function(v) ns.db.display.language = v; ReloadUI() end)
@@ -358,7 +358,7 @@ function Config:BuildLayoutPage()
 
     -- 区域2：当前与总计
     local sec2 = CreateFrame("Frame", nil, inner)
-    sec2:SetWidth(PANEL_W)
+    sec2:SetWidth(inner:GetWidth())
     local y2 = 0
     y2 = self:H(sec2, L["当前与总计窗口"], y2)
     y2 = self:Check(sec2, L["同时显示当前与总计数据"], y2, 
@@ -367,7 +367,7 @@ function Config:BuildLayoutPage()
         L["OVERALL_DATA_TOOLTIP"]) -- ★ 传入翻译好的问号提示文本
         
     local sec2_sub = CreateFrame("Frame", nil, sec2)
-    sec2_sub:SetWidth(PANEL_W)
+    sec2_sub:SetWidth(inner:GetWidth())
     sec2_sub:SetPoint("TOPLEFT", sec2, "TOPLEFT", 0, y2)
     local y2s = 0
 
@@ -401,7 +401,7 @@ function Config:BuildLayoutPage()
 
     -- 区域3：双数据显示
     local sec3 = CreateFrame("Frame", nil, inner)
-    sec3:SetWidth(PANEL_W)
+    sec3:SetWidth(inner:GetWidth())
     local y3 = 0
     y3 = self:H(sec3, L["双数据显示"], y3)
     y3 = self:Check(sec3, L["开启双数据显示"], y3, 
@@ -418,7 +418,7 @@ function Config:BuildLayoutPage()
         end)
 
     local sec3_sub = CreateFrame("Frame", nil, sec3)
-    sec3_sub:SetWidth(PANEL_W)
+    sec3_sub:SetWidth(inner:GetWidth())
     sec3_sub:SetPoint("TOPLEFT", sec3, "TOPLEFT", 0, y3)
     local y3s = 0
     local allModes = { {l=L["伤害"], v="damage"}, {l=L["治疗"], v="healing"}, {l=L["承伤"], v="damageTaken"}, {l=L["死亡"], v="deaths"}, {l=L["打断"], v="interrupts"}, {l=L["驱散"], v="dispels"} }
@@ -434,13 +434,39 @@ function Config:BuildLayoutPage()
 
     -- 区域4：比例调节
     local sec4 = CreateFrame("Frame", nil, inner)
-    sec4:SetWidth(PANEL_W)
+    sec4:SetWidth(inner:GetWidth())
     local y4 = 0
     y4 = self:H(sec4, L["自适应布局比例"], y4)
     y4 = self:Slider(sec4, L["上下分栏比例"], y4, 0.2, 0.8, 0.05, function() return ns.db.split.tbRatio or 0.5 end, function(v) ns.db.split.tbRatio = v; self:RefreshUI() end, true)
     y4 = self:Slider(sec4, L["左右分栏比例"], y4, 0.2, 0.8, 0.05, function() return ns.db.split.lrRatio or 0.5 end, function(v) ns.db.split.lrRatio = v; self:RefreshUI() end, true)
     sec4:SetHeight(math.abs(y4))
     self.laySec4 = sec4
+
+    -- 区域5：展开与折叠
+    local sec5 = CreateFrame("Frame", nil, inner)
+    sec5:SetWidth(inner:GetWidth())
+    local y5 = 0
+    y5 = self:H(sec5, L["展开与折叠"], y5)
+    y5 = self:Check(sec5, L["脱战后自动折叠"], y5, 
+        function() return ns.db.collapse.autoCollapse end, 
+        function(v) ns.db.collapse.autoCollapse = v; if ns.UI then ns.UI:CheckAutoCollapse() end end)
+    y5 = self:Check(sec5, L["副本中永不自动折叠"], y5, 
+        function() return ns.db.collapse.neverInInstance end, 
+        function(v) ns.db.collapse.neverInInstance = v; if ns.UI then ns.UI:CheckAutoCollapse() end end)
+    y5 = self:Slider(sec5, L["脱战后多久后开始折叠 (秒)"], y5, 0, 10, 0.5, 
+        function() return ns.db.collapse.delay or 1.5 end, 
+        function(v) ns.db.collapse.delay = v end)
+    y5 = self:Slider(sec5, L["折叠后透明度"], y5, 0, 1, 0.05, 
+        function() return ns.db.collapse.alpha end, 
+        function(v) ns.db.collapse.alpha = v; if ns.UI and ns.UI._collapsed then ns.UI.frame:SetAlpha(v) end end, true)
+    y5 = self:Check(sec5, L["开启折叠动画"], y5, 
+        function() return ns.db.collapse.enableAnim end, 
+        function(v) ns.db.collapse.enableAnim = v end)
+    y5 = self:Slider(sec5, L["折叠动画持续时间"], y5, 0.1, 2.0, 0.1, 
+        function() return ns.db.collapse.animDuration end, 
+        function(v) ns.db.collapse.animDuration = v end)
+    sec5:SetHeight(math.abs(y5))
+    self.laySec5 = sec5
     
     self:UpdateLayoutVisibility()
 end
@@ -469,8 +495,12 @@ function Config:UpdateLayoutVisibility()
     self.laySec2:SetPoint("TOPLEFT", self.laySec1, "BOTTOMLEFT", 0, -12)
     self.laySec3:SetPoint("TOPLEFT", self.laySec2, "BOTTOMLEFT", 0, -12)
     self.laySec4:SetPoint("TOPLEFT", self.laySec3, "BOTTOMLEFT", 0, -12)
+    
+    -- ★ 将展开与折叠区块垫在最后
+    self.laySec5:SetPoint("TOPLEFT", self.laySec4, "BOTTOMLEFT", 0, -12)
 
-    local totalH = self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + 48
+    -- ★ 更新总高度计算，包含 laySec5 的高度
+    local totalH = self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + self.laySec5:GetHeight() + 60
     inner:SetHeight(totalH)
     
     self:UpdatePageScroll("layout")

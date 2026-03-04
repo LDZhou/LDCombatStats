@@ -153,6 +153,7 @@ function UI:Build()
     if f.SetResizeBounds then f:SetResizeBounds(250, 180, 1000, 900) end
     
     f:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile=nil, edgeSize=0 })
+    f:SetClipsChildren(true)
     self.frame = f
 
     self:BuildTitle(); self:BuildMPlusSummary(); self:BuildBody()
@@ -161,6 +162,7 @@ function UI:Build()
     self:ApplyTheme()
     f:HookScript("OnSizeChanged", function() self:OnResize() end)
     f:Show(); self:Layout()
+    self:CheckAutoCollapse(true)
 
     self._lastFontHash = nil
     self._sessionCache = {}
@@ -199,10 +201,25 @@ function UI:BuildTitle()
     titleBtn:SetScript("OnDragStart", function()
         if not ns.db.window.locked then self.frame:StartMoving() end
     end)
+    
     titleBtn:SetScript("OnDragStop", function()
         self.frame:StopMovingOrSizing()
         local db = ns.db.window
-        db.point, _, db.relPoint, db.x, db.y = self.frame:GetPoint()
+        
+        -- 获取完整的锚点信息
+        local point, relativeTo, relPoint, x, y = self.frame:GetPoint()
+        
+        -- 保存到数据库
+        db.point = point
+        db.relPoint = relPoint
+        db.x = x
+        db.y = y
+        
+        -- ★ 修复：如果处于折叠状态下拖拽，同步更新 _savedAnchor
+        -- 这样再次展开时，就会从当前新拖放的位置向下展开，而不会“弹回”老位置
+        if self._collapsed then
+            self._savedAnchor = { point, relativeTo, relPoint, x, y }
+        end
     end)
 
     -- ★ 折叠/展开 按钮（最右侧，图标切换）
@@ -213,45 +230,7 @@ function UI:BuildTitle()
         TEX .. "btn_collapse",
         20,
         function()
-            self._collapsed = not self._collapsed
-            if self._collapsed then
-                -- 记录折叠前的顶部屏幕坐标，改为从 TOPLEFT 锚定，确保向上折叠
-                local left = self.frame:GetLeft()
-                local top  = self.frame:GetTop()
-                self._savedHeight = self.frame:GetHeight()
-                self._savedAnchor = { self.frame:GetPoint() }  -- 保存原始锚点
-
-                self.frame:ClearAllPoints()
-                self.frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-
-                colBtn.iconTex:SetTexture(TEX .. "btn_expand")
-                colBtn.iconTex:SetVertexColor(0.65, 0.65, 0.65, 1)
-                colBtn.texNormal = TEX .. "btn_expand"
-                colBtn.texHover  = TEX .. "btn_expand"
-                self.bodyFrame:Hide()
-                self.tabBar:Hide()
-                self.summaryBar:Hide()
-                if self.resizeHandle then self.resizeHandle:Hide() end  -- ← 隐藏缩放手柄
-                self.frame:SetHeight(TITLE_H)
-            else
-                -- 恢复原始锚点和高度
-                self.frame:ClearAllPoints()
-                if self._savedAnchor then
-                    self.frame:SetPoint(unpack(self._savedAnchor))
-                end
-                self.frame:SetHeight(self._savedHeight or ns.db.window.height)
-                self._savedHeight = nil
-                self._savedAnchor = nil
-
-                colBtn.iconTex:SetTexture(TEX .. "btn_collapse")
-                colBtn.iconTex:SetVertexColor(0.65, 0.65, 0.65, 1)
-                colBtn.texNormal = TEX .. "btn_collapse"
-                colBtn.texHover  = TEX .. "btn_collapse"
-                self.bodyFrame:Show()
-                self.tabBar:Show()
-                if self.resizeHandle then self.resizeHandle:Show() end  -- ← 恢复缩放手柄
-                self:Layout()
-            end
+            self:ToggleCollapse(not self._collapsed)
         end
     )
 
@@ -277,6 +256,137 @@ function UI:BuildTitle()
     )
     rstBtn:SetPoint("RIGHT", cfgBtn, "LEFT", -2, 0)
     self.rstBtn = rstBtn
+end
+
+function UI:ToggleCollapse(collapse, skipAnim)
+    if collapse == self._collapsed then return end
+    self._collapsed = collapse
+    
+    local db = ns.db.window
+    local cdb = ns.db.collapse
+    
+    local targetHeight = collapse and TITLE_H or (self._savedHeight or db.height)
+    local targetAlpha  = collapse and cdb.alpha or db.alpha
+    
+    if collapse then
+        -- 折叠前：保存原锚点，并强制改为 TOPLEFT 保证向上收缩
+        self._savedHeight = self.frame:GetHeight()
+        self._savedAnchor = { self.frame:GetPoint() }
+        
+        local left = self.frame:GetLeft()
+        local top  = self.frame:GetTop()
+        self.frame:ClearAllPoints()
+        self.frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        
+        self.collapseBtn.iconTex:SetTexture(TEX .. "btn_expand")
+        self.collapseBtn.iconTex:SetVertexColor(0.65, 0.65, 0.65, 1)
+        self.collapseBtn.texNormal = TEX .. "btn_expand"
+        self.collapseBtn.texHover  = TEX .. "btn_expand"
+        
+        if self.resizeHandle then self.resizeHandle:Hide() end
+    else
+        -- 展开时：保持 TOPLEFT 锚点，让它乖乖地从上往下伸展
+        self.collapseBtn.iconTex:SetTexture(TEX .. "btn_collapse")
+        self.collapseBtn.iconTex:SetVertexColor(0.65, 0.65, 0.65, 1)
+        self.collapseBtn.texNormal = TEX .. "btn_collapse"
+        self.collapseBtn.texHover  = TEX .. "btn_collapse"
+        
+        self.bodyFrame:Show()
+        self.tabBar:Show()
+        if self:IsOverallColumnActive() and (ns.db.mythicPlus and ns.db.mythicPlus.dualDisplay) and ns.state.isInInstance then
+            self.summaryBar:Show()
+        end
+        if self.resizeHandle then self.resizeHandle:Show() end
+    end
+    
+    -- 动画/状态结束后的回调函数
+    local function onAnimComplete()
+        if self._collapsed then
+            self.bodyFrame:Hide()
+            self.tabBar:Hide()
+            self.summaryBar:Hide()
+        else
+            -- 展开动画彻底结束后，再恢复原本的锚点，保证排版正常
+            self.frame:ClearAllPoints()
+            if self._savedAnchor then
+                self.frame:SetPoint(unpack(self._savedAnchor))
+            end
+            self:Layout()
+        end
+    end
+
+    -- ★ 关键修改：如果传入了 skipAnim，则直接跳过动画
+    if cdb.enableAnim and not skipAnim then
+        self:StartCollapseAnim(targetHeight, targetAlpha, onAnimComplete)
+    else
+        self.frame:SetHeight(targetHeight)
+        self.frame:SetAlpha(targetAlpha)
+        onAnimComplete()
+    end
+end
+
+function UI:StartCollapseAnim(targetHeight, targetAlpha, onComplete)
+    if not self.animFrame then
+        self.animFrame = CreateFrame("Frame")
+    end
+    
+    local startHeight = self.frame:GetHeight()
+    local startAlpha  = self.frame:GetAlpha()
+    local duration    = ns.db.collapse.animDuration or 0.5
+    local elapsed     = 0
+    
+    self.animFrame:SetScript("OnUpdate", function(f, dt)
+        elapsed = elapsed + dt
+        local progress = math.min(elapsed / duration, 1)
+        
+        -- 线性运动与平滑过渡
+        local easeProgress = math.sin(progress * math.pi / 2)
+        
+        local curHeight = startHeight + (targetHeight - startHeight) * easeProgress
+        local curAlpha  = startAlpha + (targetAlpha - startAlpha) * easeProgress
+        
+        self.frame:SetHeight(curHeight)
+        self.frame:SetAlpha(curAlpha)
+        
+        if progress >= 1 then
+            f:SetScript("OnUpdate", nil)
+            -- ★ 动画结束后调用回调
+            if onComplete then onComplete() end
+        end
+    end)
+end
+
+function UI:CheckAutoCollapse(skipAnim)
+    local cdb = ns.db.collapse
+    if not cdb then return end
+    
+    -- 1. 判断是否“必须展开”（优先级最高）
+    local mustExpand = false
+    
+    -- 如果在战斗中，必须展开
+    if ns.state.inCombat then 
+        mustExpand = true 
+    end
+    
+    -- 如果在副本内，且勾选了“副本中永不折叠”，必须展开
+    if cdb.neverInInstance and ns.state.isInInstance then 
+        mustExpand = true 
+    end
+
+    if mustExpand then
+        -- 如果当前是折叠状态，则主动展开
+        if self._collapsed then
+            self:ToggleCollapse(false, skipAnim)
+        end
+        return
+    end
+
+    -- 2. 否则，脱离了必须展开的环境后，如果开启了自动折叠，就乖乖折叠
+    if cdb.autoCollapse then
+        if not self._collapsed then
+            self:ToggleCollapse(true, skipAnim)
+        end
+    end
 end
 
 function UI:BuildMPlusSummary()
@@ -1151,6 +1261,22 @@ end
 
 function UI:OnCombatStateChanged(inCombat)
     self:RefreshTitle(); self:Refresh()
+    
+    if inCombat then
+        -- 进战时，立刻检查并执行自动展开
+        self:CheckAutoCollapse()
+    else
+        -- ★ 读取玩家设置的延迟时间（如果没取到，默认1.5秒）
+        local delay = ns.db.collapse.delay or 1.5
+        
+        if delay <= 0 then
+            -- 如果设为0秒，脱战瞬间直接判定折叠
+            self:CheckAutoCollapse()
+        else
+            -- 否则，根据设定的时间延迟判定
+            C_Timer.After(delay, function() self:CheckAutoCollapse() end)
+        end
+    end
 end
 
 function UI:RefreshHead(h, mode, seg, dur, apiSessionType)

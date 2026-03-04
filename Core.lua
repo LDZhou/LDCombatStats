@@ -15,6 +15,14 @@ ns.Core = Core
 -- 默认配置
 -- ============================================================
 ns.defaults = {
+    collapse = {
+        autoCollapse    = false,
+        neverInInstance = true,
+        delay           = 1.5,
+        alpha           = 0.5,
+        enableAnim      = true,
+        animDuration    = 0.4,
+    },
     window = {
         width = 400, height = 280,
         point = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -20, y = 180,
@@ -180,7 +188,7 @@ function Core:OnInitialize()
         end
 
         -- 3. 清理旧的角色级配置数据(节约空间，只保留战斗历史等)
-        local CONFIG_KEYS = { window=true, display=true, split=true, mythicPlus=true, tracking=true, smartRefresh=true, useBlizzMeter=true, detailWindow=true, detailDisplay=true }
+        local CONFIG_KEYS = { window=true, display=true, split=true, mythicPlus=true, tracking=true, smartRefresh=true, useBlizzMeter=true, detailWindow=true, detailDisplay=true, collapse=true }
         for k in pairs(CONFIG_KEYS) do
             if LDCombatStatsDB[k] then LDCombatStatsDB[k] = nil end
         end
@@ -340,6 +348,9 @@ function Core:OnEvent(event, ...)
             ns:InvalidateGUIDCache()
             if ns.UI and ns.UI:IsVisible() then
                 ns.UI:Layout()
+                if ns.UI.CheckAutoCollapse then
+                    ns.UI:CheckAutoCollapse(true)
+                end
             end
         end)
 
