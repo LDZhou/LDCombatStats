@@ -1,0 +1,23 @@
+name: Package and Release Addon
+
+# 触发条件：当你推送一个以 'v' 开头的标签（比如 v1.1.5）时，自动运行
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整提交历史，用于生成更新日志
+
+      - name: Build and Package
+        uses: BigWigsMods/packager@v2
+        env:
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}

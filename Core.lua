@@ -5,7 +5,15 @@
 local addonName, ns = ...
 local L = ns.L
 
-ns.version   = "1.1.1"
+-- 动态获取 .toc 文件中的版本号
+local currentVersion = C_AddOns.GetAddOnMetadata(addonName, "Version")
+
+-- 如果你在本地开发测试，读取到的是占位符，就让它显示为 "Dev" (开发版)
+if currentVersion == "@project-version@" then
+    currentVersion = "Dev"
+end
+
+ns.version   = currentVersion
 ns.addonName = addonName
 
 local Core = CreateFrame("Frame")
