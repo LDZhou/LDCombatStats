@@ -1024,7 +1024,16 @@ local function waitAndProcessArchived()
         local sessions = C_DamageMeter.GetAvailableCombatSessions()
         local count    = sessions and #sessions or 0
         for i = CT._lastProcessedCount + 1, count do
-            if isSessionStillSecret(sessions[i].sessionID) then
+            local s = sessions[i]
+            
+            -- 1. 检查是否还有加密数据
+            if isSessionStillSecret(s.sessionID) then
+                return true
+            end
+            
+            -- 2. 【新增防丢补丁】检查暴雪是否还没来得及生成战斗名称和时长
+            -- 如果还没生成，让 ticker 再等 0.5 秒，不要急着放行给 processArchivedSessions 去跳过它
+            if (s.durationSeconds or 0) == 0 and (s.name == nil or s.name == "") then
                 return true
             end
         end
@@ -1049,33 +1058,59 @@ local function waitAndProcessArchived()
             C_Timer.After(0, function() ns.UI:Layout() end)
         end
 
-        -- ★ 暴雪脱战后还会继续修正 session 的 durationSeconds
-        --   轮询直到时长稳定，再重新加载一次，确保数据最终对齐
+        -- ★ 暴雪脱战后不仅会继续修正 durationSeconds，敌人身上的 DOT 也可能继续跳伤害
+        --   轮询一段时间，发现伤害或时长有变化就重新加载，确保数据最终完全对齐
         C_Timer.After(1, function()
             local function tryRefresh(attempts)
                 if ns.state.inCombat then return end  -- 已经进入下一场战斗，放弃
-                local viewSeg = ns.Segments and ns.Segments:GetViewSegment()
-                if not viewSeg or not viewSeg._sessionID then return end
+                
+                local segs = ns.Segments
+                if not segs or not segs.history or #segs.history == 0 then return end
+                
+                -- 获取最新归档的那场历史战斗
+                local latestSeg = segs.history[1]
+                if not latestSeg or not latestSeg._sessionID then return end
 
                 local sessions = C_DamageMeter.GetAvailableCombatSessions()
+                local sessionActive = false
                 local latestDur = 0
                 for _, s in ipairs(sessions or {}) do
-                    if s.sessionID == viewSeg._sessionID then
+                    if s.sessionID == latestSeg._sessionID then
                         latestDur = s.durationSeconds or 0
+                        sessionActive = true
                         break
                     end
                 end
+                
+                if not sessionActive then return end
 
-                -- 时长比已存的更新，重读
-                if latestDur > 0 and math.abs(latestDur - (viewSeg.duration or 0)) > 0.1 then
-                    viewSeg._dataLoaded = false
-                    ns.CombatTracker:LoadSegmentData(viewSeg)
+                -- 获取暴雪底层更新后的总伤害 (用于对比是否跳了新的 DOT)
+                local latestDmg = 0
+                local ok, dmSession = pcall(C_DamageMeter.GetCombatSessionFromID, latestSeg._sessionID, Enum.DamageMeterType.DamageDone)
+                if ok and dmSession and not (issecretvalue and issecretvalue(dmSession.totalAmount)) then
+                    latestDmg = dmSession.totalAmount or 0
+                end
+
+                -- 检查时长或伤害是否有变化
+                local isChanged = false
+                if latestDur > 0 and math.abs(latestDur - (latestSeg.duration or 0)) > 0.1 then isChanged = true end
+                if latestDmg > 0 and math.abs(latestDmg - (latestSeg.totalDamage or 0)) > 0.1 then isChanged = true end
+
+                if isChanged then
+                    -- 1. 更新刚结束的单次战斗数据
+                    latestSeg._dataLoaded = false
+                    ns.CombatTracker:LoadSegmentData(latestSeg)
+                    
+                    -- 2. 同步更新全程数据 (Overall)，确保加入新跳的 DOT
+                    ns.Segments._preReloadOverallData = nil
+                    ns.CombatTracker:RebuildOverall(sessions, sessions and #sessions or 0)
+                    
                     if ns.Analysis then ns.Analysis:InvalidateCache() end
                     if ns.UI and ns.UI:IsVisible() then ns.UI:Layout() end
                 end
 
-                -- 最多重试 5 次（每次 1 秒），5 秒后放弃
-                if attempts < 5 then
+                -- 最多重试 10 次（脱战后持续追踪 10 秒，足以覆盖绝大部分 DOT 持续时间）
+                if attempts < 10 then
                     C_Timer.After(1, function() tryRefresh(attempts + 1) end)
                 end
             end
