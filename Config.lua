@@ -483,7 +483,7 @@ function Config:BuildLayoutPage()
     sec5a_hdr:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
     sec5a_hdr:SetPoint("TOPLEFT", 6, y5)
     sec5a_hdr:SetTextColor(0.6, 0.8, 1.0)
-    sec5a_hdr:SetText("▸ " .. L["折叠"])
+    sec5a_hdr:SetText(" -  " .. L["折叠"])
     y5 = y5 - 20
 
     y5 = self:Check(sec5, L["脱战后自动折叠"], y5,
@@ -511,12 +511,12 @@ function Config:BuildLayoutPage()
     sec5b_hdr:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
     sec5b_hdr:SetPoint("TOPLEFT", 6, y5)
     sec5b_hdr:SetTextColor(0.6, 0.8, 1.0)
-    sec5b_hdr:SetText("▸ " .. L["自动渐隐"])
+    sec5b_hdr:SetText(" -  " .. L["自动渐隐"])
     y5 = y5 - 20
 
     y5 = self:Check(sec5, L["脱战后自动渐隐"], y5,
         function() return ns.db.fade.autoFade end,
-        function(v) ns.db.fade.autoFade = v; if ns.UI then ns.UI:CheckAutoFade() end; self:UpdateFadeVisibility() end)
+        function(v) ns.db.fade.autoFade = v; if ns.UI then ns.UI:CheckAutoFade(true) end; self:UpdateFadeVisibility() end)
 
     -- 渐隐子选项容器（缩进 16px）
     local sec5bSub = CreateFrame("Frame", nil, sec5)
@@ -526,31 +526,31 @@ function Config:BuildLayoutPage()
 
     y5b = self:Check(sec5bSub, L["鼠标移到窗口上时取消渐隐"], y5b,
         function() return ns.db.fade.unfadeOnHover end,
-        function(v) ns.db.fade.unfadeOnHover = v end)
+        function(v) ns.db.fade.unfadeOnHover = v; if ns.UI then ns.UI:CheckAutoFade(true) end end)
     y5b = self:Slider(sec5bSub, L["脱战后自动渐隐延迟 (秒)"], y5b, 0, 10, 0.5,
         function() return ns.db.fade.delay or 1.5 end,
-        function(v) ns.db.fade.delay = v end)
+        function(v) ns.db.fade.delay = v; if ns.UI then ns.UI:CheckAutoFade(true) end end)
     y5b = y5b - 8
 
     y5b = self:Desc(sec5bSub, y5b, L["自动渐隐的内容"] .. ":")
     y5b = self:Check(sec5bSub, L["顶部与底部菜单"], y5b,
         function() return ns.db.fade.fadeBars end,
-        function(v) ns.db.fade.fadeBars = v; if ns.UI then ns.UI:CheckAutoFade() end end)
+        function(v) ns.db.fade.fadeBars = v; if ns.UI then ns.UI:CheckAutoFade(true) end end)
     y5b = self:Slider(sec5bSub, L["顶/底部菜单渐隐后透明度"], y5b, 0, 1, 0.05,
         function() return ns.db.fade.barsAlpha end,
-        function(v) ns.db.fade.barsAlpha = v; if ns.UI and ns.UI._faded then ns.UI:ApplyFadeAlpha(true) end end, true)
+        function(v) ns.db.fade.barsAlpha = v; if ns.UI then ns.UI:CheckAutoFade(true) end end, true)
 
     y5b = self:Check(sec5bSub, L["数据栏"], y5b,
         function() return ns.db.fade.fadeBody end,
-        function(v) ns.db.fade.fadeBody = v; if ns.UI then ns.UI:CheckAutoFade() end end)
+        function(v) ns.db.fade.fadeBody = v; if ns.UI then ns.UI:CheckAutoFade(true) end end)
     y5b = self:Slider(sec5bSub, L["数据栏渐隐后透明度"], y5b, 0, 1, 0.05,
         function() return ns.db.fade.bodyAlpha end,
-        function(v) ns.db.fade.bodyAlpha = v; if ns.UI and ns.UI._faded then ns.UI:ApplyFadeAlpha(true) end end, true)
+        function(v) ns.db.fade.bodyAlpha = v; if ns.UI then ns.UI:CheckAutoFade(true) end end, true)
 
     y5b = y5b - 8
     y5b = self:Check(sec5bSub, L["开启渐隐动画"], y5b,
         function() return ns.db.fade.enableAnim end,
-        function(v) ns.db.fade.enableAnim = v end)
+        function(v) ns.db.fade.enableAnim = v; if ns.UI then ns.UI:CheckAutoFade(true) end end)
     y5b = self:Slider(sec5bSub, L["渐隐动画持续时间"], y5b, 0.1, 2.0, 0.1,
         function() return ns.db.fade.animDuration end,
         function(v) ns.db.fade.animDuration = v end)
@@ -615,7 +615,7 @@ function Config:UpdateLayoutVisibility()
             self.laySec5:SetHeight(math.abs(self.laySec5_baseY or 0))
         end
     end
-    
+
     -- ★ 将展开与折叠区块垫在最后
     self.laySec5:SetPoint("TOPLEFT", self.laySec4, "BOTTOMLEFT", 0, -12)
 

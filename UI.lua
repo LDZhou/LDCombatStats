@@ -198,6 +198,13 @@ function UI:Build()
         self._wasMouseOver = isOver
     end)
     self._fadeHoverFrame = fadeHoverFrame
+
+    --   解决登录后从未进入战斗时，渐隐永远不生效的问题
+    C_Timer.After(0.5, function()
+        if self.frame and self.frame:IsShown() and not ns.state.inCombat then
+            self:CheckAutoFade(true)
+        end
+    end)
 end
 
 local TEX = "Interface\\AddOns\\LDCombatStats\\Textures\\"
@@ -346,7 +353,7 @@ function UI:ToggleCollapse(collapse, skipAnim)
             self:Layout()
             -- ★ 展开后若脱战，恢复渐隐
             if not ns.state.inCombat then
-                C_Timer.After(0.1, function() self:CheckAutoFade() end)
+                C_Timer.After(0.1, function() self:CheckAutoFade(true) end)
             end
         end
     end
@@ -428,7 +435,7 @@ end
 -- ============================================================
 -- 渐隐系统
 -- ============================================================
-function UI:CheckAutoFade()
+function UI:CheckAutoFade(force)
     local fdb = ns.db and ns.db.fade
     if not fdb then return end
     if not self.frame or not self.frame:IsShown() then return end
@@ -453,15 +460,19 @@ function UI:CheckAutoFade()
 
     -- 脱战后
     if fdb.autoFade then
-        if not self._faded then
+        -- ★ 修复：添加 force 参数，设置变更时强制重新应用渐隐
+        if not self._faded or force then
             self._faded = true
             if fdb.unfadeOnHover and self.frame:IsMouseOver() then
-                return  -- 鼠标在窗口上，暂不渐隐
+                -- ★ 修复：鼠标悬停时也要确保 unfade 被正确应用（而非直接 return 什么都不做）
+                self:ApplyFadeAlpha(false)
+                return
             end
             self:ApplyFadeAlpha(true)
         end
     else
-        if self._faded then
+        -- ★ 修复：关闭渐隐时也需要 force 检查，确保能立即恢复
+        if self._faded or force then
             self._faded = false
             self:ApplyFadeAlpha(false)
         end
@@ -471,6 +482,12 @@ end
 function UI:ApplyFadeAlpha(shouldFade)
     local fdb = ns.db and ns.db.fade
     if not fdb then return end
+
+    -- ★ 修复：强制取消正在进行的渐隐动画，避免新旧动画冲突
+    if self._fadeAnimFrame then
+        self._fadeAnimFrame:SetScript("OnUpdate", nil)
+    end
+    self._fadeAnimating = false
 
     -- 分两组：顶底菜单 / 数据栏，各自有独立的目标透明度
     local barsAlpha = shouldFade and fdb.barsAlpha or 1.0
@@ -1427,9 +1444,9 @@ function UI:OnCombatStateChanged(inCombat)
         -- 渐隐延迟
         local fadeDelay = (ns.db.fade and ns.db.fade.delay) or 1.5
         if fadeDelay <= 0 then
-            self:CheckAutoFade()
+            self:CheckAutoFade(true)
         else
-            C_Timer.After(fadeDelay, function() self:CheckAutoFade() end)
+            C_Timer.After(fadeDelay, function() self:CheckAutoFade(true) end)
         end
     end
 end
@@ -2066,7 +2083,7 @@ function UI:Toggle()
         self.frame:Show()
         ns.db.window.visible = true   -- ★ 保存显示状态
         self:Layout() 
-        C_Timer.After(0.1, function() self:CheckAutoFade() end)
+        C_Timer.After(0.1, function() self:CheckAutoFade(true) end)
     end
 end
 function UI:IsVisible()
