@@ -630,6 +630,7 @@ function Config:BuildDataPage()
     local inner = self.pages["data"].inner; local y = 0
     y = self:H(inner, L["数据显示格式"], y)
     y = self:Check(inner, L["同时显示伤害总量和DPS"], y, function() return ns.db.display.showPerSecond end, function(v) ns.db.display.showPerSecond=v; self:RefreshUI() end)
+    y = self:Check(inner, L["显示数据贡献百分比 (脱战后生效)"], y, function() return ns.db.display.showPercent end, function(v) ns.db.display.showPercent=v; self:RefreshUI() end)
     y = self:Check(inner, L["显示排名序号"], y, function() return ns.db.display.showRank end, function(v) ns.db.display.showRank=v; self:RefreshUI() end)
     y = self:Check(inner, L["在最左侧显示专精图标"], y, function() return ns.db.display.showSpecIcon end, function(v) ns.db.display.showSpecIcon=v; self:RefreshUI() end)
     y = self:Check(inner, L["显示玩家服务器"], y, function() return ns.db.display.showRealm end, function(v) ns.db.display.showRealm=v; self:RefreshUI() end)
@@ -651,7 +652,13 @@ function Config:BuildLookPage()
         function(v) ns.db.window.scale = v; if ns.UI and ns.UI.frame then ns.UI.frame:SetScale(v) end end)
     y = self:Check(inner, L["锁定窗口位置"], y,
         function() return ns.db.window.locked end,
-        function(v) ns.db.window.locked=v end)
+        function(v) 
+            ns.db.window.locked = v
+            -- 勾选后立刻触发 UI 更新，隐藏或显示右下角
+            if ns.UI and ns.UI.UpdateLockState then 
+                ns.UI:UpdateLockState() 
+            end 
+        end)
 
     -- ── 颜色 ──────────────────────────────────────────────────
     y = y - 12; y = self:H(inner, L["界面颜色"], y)

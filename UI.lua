@@ -816,6 +816,8 @@ function UI:Layout()
         self._layoutPending = false  -- ★ 执行前解锁，允许下一次 Layout
         self:DoLayout(0)
     end)
+
+    self:UpdateLockState()
 end
 
 -- ============================================================
@@ -1568,7 +1570,7 @@ function UI:FillBars(bars, listObj, data, dur, mode)
                 end
             end
             
-            bar.value:SetText(self:MakeValueStr(d.value, dur, mode, d.perSec))
+            bar.value:SetText(self:MakeValueStr(d.value, dur, mode, d.perSec, d.percent))
             bar.frame:Show()
         else
             if bar.specIcon then bar.specIcon:Hide() end
@@ -1594,6 +1596,7 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
     end
 
     local sources, maxAmt = session.combatSources, session.maxAmount
+    local sessionTotal = session.totalAmount or 0
     local count = math.min(#sources, MAX_BARS)
     self:UpdateScrollState(listObj, count)
 
@@ -1660,15 +1663,20 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
                 bar.name:SetTextColor(nr, ng, nb)
             end
 
-            -- ★ 直接使用暴雪的 SetFormattedText，彻底禁止在 Lua 中使用 string.format 和 ..
+            -- ★ 实时数值赋值逻辑 (战斗中，不计算百分比，完美避开加密报错)
             if COUNT_MODES[mode] then
                 bar.value:SetFormattedText("%s" .. L["次"], AbbreviateNumbers(src.totalAmount))
             else
-                if ns.db.display.showPerSecond then
-                    bar.value:SetFormattedText("%s(%s)", AbbreviateNumbers(src.totalAmount), AbbreviateNumbers(src.amountPerSecond))
-                else
-                    bar.value:SetText(AbbreviateNumbers(src.totalAmount))
-                end
+                local showPS = ns.db.display.showPerSecond
+                
+                -- ★ 修改点：只保留总量和秒伤，并且在中间加了空格 "%s (%s)"
+                pcall(function()
+                    if showPS then
+                        bar.value:SetFormattedText("%s (%s)", AbbreviateNumbers(src.totalAmount), AbbreviateNumbers(src.amountPerSecond))
+                    else
+                        bar.value:SetText(AbbreviateNumbers(src.totalAmount))
+                    end
+                end)
             end
 
             if not bar._apiData then bar._apiData = {} end
@@ -1749,25 +1757,30 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
 end
 
 
-function UI:MakeValueStr(value, dur, mode, perSec)
+function UI:MakeValueStr(value, dur, mode, perSec, percent)
     local vStr = ""
     if COUNT_MODES[mode] then
-        -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
         vStr = ns:FormatNumber(value) .. L["次"]
     else
+        local baseStr = ""
         if ns.db.display.showPerSecond then
-
             local ps = (perSec and perSec > 0) and perSec
                        or (dur and dur > 0 and (value / dur) or nil)
             if ps then
-                -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
-                vStr = string.format("%s(%s)", ns:FormatNumber(value), ns:FormatNumber(ps))
+                -- ★ 修改点：在 %s 和 (%s) 之间加了一个空格
+                baseStr = string.format("%s (%s)", ns:FormatNumber(value), ns:FormatNumber(ps))
             else
-                vStr = ns:FormatNumber(value)
+                baseStr = ns:FormatNumber(value)
             end
         else
-            -- 替换：AbbreviateNumbers 改为 ns:FormatNumber
-            vStr = ns:FormatNumber(value)
+            baseStr = ns:FormatNumber(value)
+        end
+
+        -- ★ 修改点：判断百分比开关。如果开启，在脱战后附加百分比，并用两个空格拉开间距
+        if ns.db.display.showPercent and percent and percent > 0 then
+            vStr = string.format("%s  %.1f%%", baseStr, percent)
+        else
+            vStr = baseStr
         end
     end
     return vStr
@@ -2091,3 +2104,13 @@ function UI:IsVisible()
 end
 
 function UI:UpdateLock() end
+
+function UI:UpdateLockState()
+    if not self.resizeHandle then return end
+    
+    if ns.db.window.locked then
+        self.resizeHandle:Hide()
+    else
+        self.resizeHandle:Show()
+    end
+end
