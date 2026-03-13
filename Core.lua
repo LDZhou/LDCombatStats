@@ -47,7 +47,7 @@ ns.defaults = {
     window = {
         width = 400, height = 280,
         point = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -20, y = 180,
-        alpha = 0.92, scale = 1.0, locked = false, visible = true,
+        alpha = 0.92, scale = 1.0, configScale = 1.0,locked = false, visible = true,
         themeColor = {0, 0.85, 0.85, 0.05},
         bgColor    = {0, 0.7, 0.7, 0},
         ovrBgColor = {1, 1, 1, 0.05},
@@ -124,7 +124,7 @@ ns.defaults = {
         autoReset       = false,
         minCombatTime   = 2,
         deathLogSize    = 15,
-        maxSegments     = 50,
+        maxSegments     = 20,
     },
     smartRefresh = {
         combatInterval = 0.3,
@@ -1013,7 +1013,13 @@ function ns:SwitchProfile(name)
         ns.UI:Layout()
     end
     if ns.Config then
-        if ns.Config.panel then ns.Config:RefreshUI() end
+        if ns.Config.panel then 
+            ns.Config:RefreshUI() 
+            -- ★ 切换配置时同步刷新设置界面自身的缩放
+            local cScale = ns.db.window and ns.db.window.configScale or 1.0
+            ns.Config.panel:SetScale(cScale)
+            if ns.Config._pvSwitcher then ns.Config._pvSwitcher:SetScale(cScale) end
+        end
         if ns.Config.RefreshTitle then ns.Config:RefreshTitle() end
     end
     

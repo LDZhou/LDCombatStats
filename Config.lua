@@ -208,6 +208,7 @@ function Config:Build()
     p:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile=nil, edgeSize=0 })
     p:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
     p:Hide(); self.panel = p
+    p:SetScale(ns.db and ns.db.window and ns.db.window.configScale or 1.0)
 
     -- 标题栏使用主题色
     local tc = ns.db.window.themeColor or {0.08, 0.08, 0.12, 1}
@@ -674,6 +675,17 @@ function Config:BuildLookPage()
     y = self:Slider(inner, L["窗口缩放 (Scale)"], y, 0.5, 2.0, 0.05,
         function() return ns.db.window.scale end,
         function(v) ns.db.window.scale = v; if ns.UI and ns.UI.frame then ns.UI.frame:SetScale(v) end end)
+    
+    -- ★ 新增：设置界面自身的缩放滑条
+    y = self:Slider(inner, L["[设置]界面缩放"], y, 0.5, 2.0, 0.05,
+        function() return ns.db.window.configScale or 1.0 end,
+        function(v) 
+            ns.db.window.configScale = v
+            -- 拖动时即时调整面板和预览栏的大小
+            if self.panel then self.panel:SetScale(v) end
+            if self._pvSwitcher then self._pvSwitcher:SetScale(v) end
+        end)
+
     y = self:Check(inner, L["锁定窗口位置"], y,
         function() return ns.db.window.locked end,
         function(v) 
@@ -847,6 +859,14 @@ function Config:BuildPerfPage()
     y = self:Slider(inner, L["脱战刷新间隔 (秒)"], y, 0.5, 5.0, 0.5,
         function() return ns.db.smartRefresh.idleInterval end,
         function(v) ns.db.smartRefresh.idleInterval=v end)
+
+    y = y - 12
+    y = self:H(inner, L["数据追踪"], y)
+    y = self:Slider(inner, L["历史记录保存上限"], y, 5, 100, 1,
+        function() return ns.db.tracking.maxSegments or 20 end,
+        function(v) ns.db.tracking.maxSegments=v; ns.Segments:SetViewSegment(ns.Segments.viewIndex) end)
+    y = self:Desc(inner, y, L["(当超过上限时，将自动删除小怪记录，优先保留Boss战和副本全程记录)"])
+
     inner:SetHeight(math.abs(y) + 20)
 end
 
@@ -1335,6 +1355,8 @@ function Config:BuildSceneSwitcher()
     sw:SetSize(430, 36)
     sw:SetFrameStrata("DIALOG")
     sw:SetFrameLevel(110)
+
+    sw:SetScale(ns.db and ns.db.window and ns.db.window.configScale or 1.0)
     
     -- 应用与设置主面板完全一致的极简底色
     sw:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile=nil, edgeSize=0 })
