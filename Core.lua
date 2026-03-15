@@ -627,7 +627,6 @@ function ns:HandleSlashCommand(msg)
 
     elseif msg == "reset" then
         if ns.Segments then ns.Segments:ResetAll() end
-        if ns.db then ns.db.savedHistory = nil end
         print(L["|cff00ccff[Light Damage]|r 数据已重置"])
 
     elseif msg == "config" then

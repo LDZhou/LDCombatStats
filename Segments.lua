@@ -102,10 +102,63 @@ end
 
 function Segments:ResetAll()
     self:Init()
+    self._preReloadOverallData = nil
+
+    if ns.db then
+        ns.db.savedHistory       = nil
+        ns.db.savedOverall       = nil
+        ns.db.savedBaseline      = nil
+        ns.db.savedLastProcessed = nil
+    end
+
+    if ns.Analysis then
+        ns.Analysis:InvalidateCache()
+    end
+
+    if ns.DeathTracker then
+        ns.DeathTracker:ClearBuffers()
+    end
+
+    wipe(ns.PlayerInfoCache)
+
+    if ns.DetailView then
+        ns.DetailView._lastRenderArgs = nil
+        if ns.DetailView.frame and ns.DetailView.frame:IsShown() then
+            ns.DetailView.frame:Hide()
+        end
+    end
+
     if ns.CombatTracker then
         ns.CombatTracker:MarkReset()
+        ns.CombatTracker._bossSessionIndices = {}
     end
-    if ns.UI then ns.UI:Refresh() end
+
+    if ns.HistoryList and ns.HistoryList._histItems then
+        for _, item in ipairs(ns.HistoryList._histItems) do
+            item.data = nil
+        end
+    end
+
+    if ns.UI then
+        local function wipeBars(bars)
+            if not bars then return end
+            for _, bar in ipairs(bars) do
+                bar._data     = nil
+                bar._apiData  = nil
+                bar._guid     = nil
+                bar._nameStr  = nil
+                bar._classStr = nil
+                bar._mode     = nil
+                bar._isDeath  = false
+            end
+        end
+        wipeBars(ns.UI.priBars)
+        wipeBars(ns.UI.secBars)
+        wipeBars(ns.UI.ovrPriBars)
+        wipeBars(ns.UI.ovrSecBars)
+        ns.UI._sessionCache = {}
+        ns.UI:Refresh()
+    end
 end
 
 -- ============================================================
