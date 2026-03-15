@@ -1074,10 +1074,13 @@ end
 -- 等 secret 释放后再解析
 -- ============================================================
 local waitTicker
+local waitAttempts = 0
 
 local function waitAndProcessArchived()
 
     if waitTicker then return end
+
+    waitAttempts = 0
 
     local function anyUnprocessedStillSecret()
         local sessions = C_DamageMeter.GetAvailableCombatSessions()
@@ -1183,7 +1186,15 @@ local function waitAndProcessArchived()
     end
 
     waitTicker = C_Timer.NewTicker(0.5, function()
+        waitAttempts = waitAttempts + 1
         if InCombatLockdown() then return end
+
+        if waitAttempts >= 10 then
+            if waitTicker then waitTicker:Cancel(); waitTicker = nil end
+            doAfterProcess()
+            return
+        end
+        
         if anyUnprocessedStillSecret() then return end
         
         if waitTicker then waitTicker:Cancel(); waitTicker = nil end
@@ -1409,6 +1420,12 @@ function CT:RegisterEvents()
 
                     -- 2. 立刻召唤等待函数去处理收尾和合并
                     C_Timer.After(0, waitAndProcessArchived)
+
+                    C_Timer.After(8, function()
+                        if CT._pendingMergeArgs then
+                            waitAndProcessArchived()
+                        end
+                    end)
                 end
 
                 CT._currentInstanceTag   = nil
