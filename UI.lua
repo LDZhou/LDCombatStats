@@ -660,12 +660,11 @@ function UI:BuildBody()
     self.ovrSecBars = {}
     for i = 1, MAX_BARS do self.ovrSecBars[i] = self:MakeBar(self.ovrSecList.child, "ovrSec", i) end
 
-    -- ★ 固定自己的排名栏（父级是 ScrollFrame，不会跟着滚动）
     self._pinnedSelf = {
-        pri    = self:MakePinnedSelfBar(self.priList.sf,    "primary"),
-        sec    = self:MakePinnedSelfBar(self.secList.sf,    "secondary"),
-        ovrPri = self:MakePinnedSelfBar(self.ovrPriList.sf, "ovrPri"),
-        ovrSec = self:MakePinnedSelfBar(self.ovrSecList.sf, "ovrSec"),
+        pri    = self:MakePinnedSelfBar(self.leftContainer, self.priList.sf,    "primary"),
+        sec    = self:MakePinnedSelfBar(self.leftContainer, self.secList.sf,    "secondary"),
+        ovrPri = self:MakePinnedSelfBar(self.ovrContainer,  self.ovrPriList.sf, "ovrPri"),
+        ovrSec = self:MakePinnedSelfBar(self.ovrContainer,  self.ovrSecList.sf, "ovrSec"),
     }
 
     -- ★ 滚动钩子：滚动时实时判断固定栏显隐
@@ -777,16 +776,10 @@ function UI:MakeBar(parent, section, index)
     return bar
 end
 
-function UI:MakePinnedSelfBar(sf, section)
-    local bar = self:MakeBar(sf, section, 0)
+function UI:MakePinnedSelfBar(container, sf, section)
+    local bar = self:MakeBar(container, section, 0)
     bar.frame:SetFrameLevel(sf:GetFrameLevel() + 10)
     bar._isPinned = true
-
-    -- ★ 完全不透明底板，覆盖整行区域（包括图标位置）
-    bar.pinnedBg = bar.frame:CreateTexture(nil, "BACKGROUND", nil, 7)
-    bar.pinnedBg:SetAllPoints(bar.frame)
-    -- 颜色在 PositionPinnedBar 里同步
-
     bar.frame:Hide()
     return bar
 end
@@ -966,23 +959,12 @@ function UI:GetVisibleBarCount(listObj)
     return math.floor(viewH / (bh + gap))
 end
 
--- 将固定栏定位到滚动框的底部
-function UI:PositionPinnedBar(bar, listObj)
-    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
-    bar.frame:ClearAllPoints()
-    bar.frame:SetPoint("BOTTOMLEFT",  listObj.sf, "BOTTOMLEFT",  0, 0)
-    bar.frame:SetPoint("BOTTOMRIGHT", listObj.sf, "BOTTOMRIGHT", 0, 0)
-    bar.frame:SetHeight(bh)
-    self:AnchorBarTexts(bar)
-    self:ApplyFont(bar.rank,  font, fSz - 1, fOut, fShad)
-    self:ApplyFont(bar.name,  font, fSz,     fOut, fShad)
-    self:ApplyFont(bar.value, font, fSz - 1, fOut, fShad)
-end
 
-function UI:IsSelfVisibleInViewport(listObj, selfIdx)
+-- ★ 返回 "visible" / "above" / "below"
+function UI:GetSelfViewportPosition(listObj, selfIdx)
     local bh, gap = self:GetBarConfig()
     local rowH = bh + gap
-    if rowH <= 0 then return true end
+    if rowH <= 0 then return "visible" end
 
     local viewH = listObj.sf:GetHeight()
     local scrollOffset = listObj.sf:GetVerticalScroll() or 0
@@ -993,26 +975,30 @@ function UI:IsSelfVisibleInViewport(listObj, selfIdx)
     local viewTop    = scrollOffset
     local viewBottom = scrollOffset + viewH
 
-    -- 自己的行完全在可视区域内
-    return selfTop >= viewTop and selfBottom <= viewBottom
+    if selfBottom <= viewTop then return "above" end
+    if selfTop >= viewBottom then return "below" end
+    return "visible"
 end
 
-function UI:PositionPinnedBar(pinnedBar, listObj)
+function UI:PositionPinnedBar(pinnedBar, listObj, position)
     local bh, gap, _, font, fSz, fOut, fShad = self:GetBarConfig()
     pinnedBar.frame:ClearAllPoints()
-    pinnedBar.frame:SetPoint("BOTTOMLEFT",  listObj.sf, "BOTTOMLEFT",  0, 0)
-    pinnedBar.frame:SetPoint("BOTTOMRIGHT", listObj.sf, "BOTTOMRIGHT", 0, 0)
     pinnedBar.frame:SetHeight(bh)
+    if position == "top" then
+        pinnedBar.frame:SetPoint("BOTTOMLEFT",  listObj.sf, "TOPLEFT",  0, 0)
+        pinnedBar.frame:SetPoint("BOTTOMRIGHT", listObj.sf, "TOPRIGHT", 0, 0)
+    else
+        pinnedBar.frame:SetPoint("TOPLEFT",  listObj.sf, "BOTTOMLEFT",  0, 0)
+        pinnedBar.frame:SetPoint("TOPRIGHT", listObj.sf, "BOTTOMRIGHT", 0, 0)
+    end
     self:AnchorBarTexts(pinnedBar)
     self:ApplyFont(pinnedBar.rank,  font, fSz - 1, fOut, fShad)
     self:ApplyFont(pinnedBar.name,  font, fSz,     fOut, fShad)
     self:ApplyFont(pinnedBar.value, font, fSz - 1, fOut, fShad)
-
-    pinnedBar.pinnedBg:SetColorTexture(0.02, 0.02, 0.03, 1)
 end
 
-function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
-    self:PositionPinnedBar(pinnedBar, listObj)
+function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV, position)
+    self:PositionPinnedBar(pinnedBar, listObj, position)
     local bh, gap, alpha = self:GetBarConfig()
     local texPath  = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
     local textMode = ns.db.display.textColorMode or "class"
@@ -1056,8 +1042,8 @@ function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
     pinnedBar.frame:Show()
 end
 
-function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType)
-    self:PositionPinnedBar(pinnedBar, listObj)
+function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType, position)
+    self:PositionPinnedBar(pinnedBar, listObj, position)
     local bh, gap, alpha = self:GetBarConfig()
     local texPath  = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
     local textMode = ns.db.display.textColorMode or "class"
@@ -1121,14 +1107,123 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     pinnedBar.frame:Show()
 end
 
+-- ★ 固定自己排名时，给滚动内容底部加 padding，防止最后一行 bar 被固定栏遮挡
+function UI:ApplyPinnedPadding(listObj, dataCount)
+    local bh, gap = self:GetBarConfig()
+    local padH = bh + gap
+    local totalH = dataCount * (bh + gap) + padH
+    listObj.child:SetHeight(math.max(10, totalH))
+    local viewH = listObj.sf:GetHeight()
+    local maxScroll = math.max(0, totalH - viewH)
+    listObj.sb:SetMinMaxValues(0, maxScroll)
+    if maxScroll > 0 then
+        listObj.sb:Show()
+        listObj.child:SetWidth(listObj.sf:GetWidth() - 4)
+    end
+end
+
+function UI:GetDataCountForList(listObj)
+    if     listObj == self.priList    then return self._pinnedDataCount_pri    or 0
+    elseif listObj == self.secList    then return self._pinnedDataCount_sec    or 0
+    elseif listObj == self.ovrPriList then return self._pinnedDataCount_ovrPri or 0
+    elseif listObj == self.ovrSecList then return self._pinnedDataCount_ovrSec or 0
+    end
+    return 0
+end
+
+function UI:SetDataCountForList(listObj, count)
+    if     listObj == self.priList    then self._pinnedDataCount_pri    = count
+    elseif listObj == self.secList    then self._pinnedDataCount_sec    = count
+    elseif listObj == self.ovrPriList then self._pinnedDataCount_ovrPri = count
+    elseif listObj == self.ovrSecList then self._pinnedDataCount_ovrSec = count
+    end
+end
+
+
+-- ★ 固定自己排名：缩小 ScrollFrame 腾出空间
+function UI:ShrinkSfForPinned(listKey, listObj, dataCount)
+    if not self._pinnedSfOrigH then self._pinnedSfOrigH = {} end
+    if not self._pinnedSfOrigH[listKey] then
+        self._pinnedSfOrigH[listKey] = listObj.sf:GetHeight()
+    end
+    local bh = self:GetBarConfig()
+    listObj.sf:SetHeight(math.max(1, self._pinnedSfOrigH[listKey] - bh))
+    self:UpdateScrollState(listObj, dataCount)
+end
+
+function UI:RestoreSfForPinned(listKey, listObj, dataCount)
+    if self._pinnedSfOrigH and self._pinnedSfOrigH[listKey] then
+        listObj.sf:SetHeight(self._pinnedSfOrigH[listKey])
+        self._pinnedSfOrigH[listKey] = nil
+        self:UpdateScrollState(listObj, dataCount)
+    end
+end
+-- ★ 缩小 ScrollFrame 腾出空间给固定栏
+function UI:ShrinkSfForPinned(listKey, listObj, dataCount, position)
+    if not self._pinnedSfOrigH then self._pinnedSfOrigH = {} end
+    if not self._pinnedSfOrigH[listKey] then
+        self._pinnedSfOrigH[listKey] = listObj.sf:GetHeight()
+    end
+    local bh = self:GetBarConfig()
+    local newH = math.max(1, self._pinnedSfOrigH[listKey] - bh)
+
+    if position == "top" then
+        -- 保存原始锚点，把 sf 顶部往下推 bh
+        if not self._pinnedSfSavedAnchors then self._pinnedSfSavedAnchors = {} end
+        if not self._pinnedSfSavedAnchors[listKey] then
+            local n = listObj.sf:GetNumPoints()
+            local anchors = {}
+            for i = 1, n do anchors[i] = { listObj.sf:GetPoint(i) } end
+            self._pinnedSfSavedAnchors[listKey] = anchors
+            listObj.sf:ClearAllPoints()
+            for _, a in ipairs(anchors) do
+                local point, rel, relPoint, x, y = unpack(a)
+                if point:find("TOP") then
+                    listObj.sf:SetPoint(point, rel, relPoint, x, y - bh)
+                else
+                    listObj.sf:SetPoint(point, rel, relPoint, x, y)
+                end
+            end
+        end
+    end
+
+    listObj.sf:SetHeight(newH)
+    self:UpdateScrollState(listObj, dataCount)
+end
+
+function UI:RestoreSfForPinned(listKey, listObj, dataCount)
+    local restored = false
+
+    if self._pinnedSfOrigH and self._pinnedSfOrigH[listKey] then
+        listObj.sf:SetHeight(self._pinnedSfOrigH[listKey])
+        self._pinnedSfOrigH[listKey] = nil
+        restored = true
+    end
+
+    if self._pinnedSfSavedAnchors and self._pinnedSfSavedAnchors[listKey] then
+        listObj.sf:ClearAllPoints()
+        for _, a in ipairs(self._pinnedSfSavedAnchors[listKey]) do
+            listObj.sf:SetPoint(unpack(a))
+        end
+        self._pinnedSfSavedAnchors[listKey] = nil
+        restored = true
+    end
+
+    if restored then
+        self:UpdateScrollState(listObj, dataCount)
+    end
+end
+
 function UI:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count)
     if not self._pinnedSelf then return end
     local pinnedBar = self._pinnedSelf[listKey]
     if not pinnedBar then return end
 
-    -- 缓存参数供滚动钩子使用
     if not self._pinnedSelfCache then self._pinnedSelfCache = {} end
     self._pinnedSelfCache[listKey] = { type = "bars", data = data, dur = dur, mode = mode, count = count }
+
+    -- ★ 先恢复 sf 到原始状态，用完整视口判断可见性
+    self:RestoreSfForPinned(listKey, listObj, count)
 
     if not ns.db.display.alwaysShowSelf or mode == "deaths" then
         pinnedBar.frame:Hide(); return
@@ -1140,12 +1235,15 @@ function UI:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count)
     end
     if not selfIdx or not selfData then pinnedBar.frame:Hide(); return end
 
-    if self:IsSelfVisibleInViewport(listObj, selfIdx) then
+    local position = self:GetSelfViewportPosition(listObj, selfIdx)
+    if position == "visible" then
         pinnedBar.frame:Hide(); return
     end
 
+    -- ★ 缩小 sf 腾出一行，固定栏放在对应方向
+    self:ShrinkSfForPinned(listKey, listObj, count, position)
     local maxV = data[1] and data[1].value or 0
-    self:FillPinnedFromData(pinnedBar, listObj, selfData, selfIdx, dur, mode, maxV)
+    self:FillPinnedFromData(pinnedBar, listObj, selfData, selfIdx, dur, mode, maxV, position)
 end
 
 function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType)
@@ -1153,8 +1251,13 @@ function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType
     local pinnedBar = self._pinnedSelf[listKey]
     if not pinnedBar then return end
 
+    local count = math.min(#sources, MAX_BARS)
+
     if not self._pinnedSelfCache then self._pinnedSelfCache = {} end
     self._pinnedSelfCache[listKey] = { type = "api", sources = sources, mode = mode, maxAmt = maxAmt, sType = sType }
+
+    -- ★ 先恢复 sf 到原始状态
+    self:RestoreSfForPinned(listKey, listObj, count)
 
     if not ns.db.display.alwaysShowSelf or mode == "deaths" then
         pinnedBar.frame:Hide(); return
@@ -1166,11 +1269,14 @@ function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType
     end
     if not selfIdx or not selfSrc then pinnedBar.frame:Hide(); return end
 
-    if self:IsSelfVisibleInViewport(listObj, selfIdx) then
+    local position = self:GetSelfViewportPosition(listObj, selfIdx)
+    if position == "visible" then
         pinnedBar.frame:Hide(); return
     end
 
-    self:FillPinnedFromAPI(pinnedBar, listObj, selfSrc, selfIdx, mode, maxAmt, sType)
+    -- ★ 缩小 sf 腾出一行
+    self:ShrinkSfForPinned(listKey, listObj, count, position)
+    self:FillPinnedFromAPI(pinnedBar, listObj, selfSrc, selfIdx, mode, maxAmt, sType, position)
 end
 
 function UI:ApplyAllFontsIfNeeded()
@@ -1185,6 +1291,8 @@ function UI:DoLayout(retryCount)
     if not self.bodyFrame then return end
     retryCount = retryCount or 0
     self:ApplyAllFontsIfNeeded()
+    self._pinnedSfOrigH = {}
+    self._pinnedSfSavedAnchors = {}
 
     local bodyH = self.bodyFrame:GetHeight()
     local bodyW = self.bodyFrame:GetWidth()
