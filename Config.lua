@@ -659,6 +659,7 @@ function Config:BuildDataPage()
     y = self:Check(inner, L["显示排名序号"], y, function() return ns.db.display.showRank end, function(v) ns.db.display.showRank=v; self:RefreshUI() end)
     y = self:Check(inner, L["在最左侧显示专精图标"], y, function() return ns.db.display.showSpecIcon end, function(v) ns.db.display.showSpecIcon=v; self:RefreshUI() end)
     y = self:Check(inner, L["显示玩家服务器"], y, function() return ns.db.display.showRealm end, function(v) ns.db.display.showRealm=v; self:RefreshUI() end)
+    y = self:Check(inner, L["在排名中永远显示自己"], y, function() return ns.db.display.alwaysShowSelf end, function(v) ns.db.display.alwaysShowSelf=v; self:RefreshUI() end)
     -- ★ 将原MPlus页面的全局选项移至此处
     y = self:Check(inner, L["标题下方显示全程摘要行（仅在副本中生效）"], y, function() return ns.db.mythicPlus.dualDisplay end, function(v) ns.db.mythicPlus.dualDisplay=v; self:RefreshUI() end)
     y = self:Check(inner, L["离开副本后自动生成副本全程段落"], y, function() return ns.db.mythicPlus.enabled end, function(v) ns.db.mythicPlus.enabled=v end)

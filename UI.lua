@@ -659,6 +659,14 @@ function UI:BuildBody()
     self.ovrSecList = self:MakeScrollArea(self.ovrContainer)
     self.ovrSecBars = {}
     for i = 1, MAX_BARS do self.ovrSecBars[i] = self:MakeBar(self.ovrSecList.child, "ovrSec", i) end
+
+    -- ★ 固定自己的排名栏（父级是 ScrollFrame，不会跟着滚动）
+    self._pinnedSelf = {
+        pri    = self:MakePinnedSelfBar(self.priList.sf,    "primary"),
+        sec    = self:MakePinnedSelfBar(self.secList.sf,    "secondary"),
+        ovrPri = self:MakePinnedSelfBar(self.ovrPriList.sf, "ovrPri"),
+        ovrSec = self:MakePinnedSelfBar(self.ovrSecList.sf, "ovrSec"),
+    }
 end
 
 function UI:MakeSectHead(parent)
@@ -746,6 +754,22 @@ function UI:MakeBar(parent, section, index)
     bar.frame:SetScript("OnEnter", function() UI:ShowTooltip(bar, bar.section) end)
     bar.frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+    return bar
+end
+
+function UI:MakePinnedSelfBar(sf, section)
+    local bar = self:MakeBar(sf, section, 0)
+    bar.frame:SetFrameLevel(sf:GetFrameLevel() + 10)
+    bar._isPinned = true
+
+    -- 顶部蓝色强调线，和普通行做出视觉区分
+    bar.pinnedSep = bar.frame:CreateTexture(nil, "OVERLAY")
+    bar.pinnedSep:SetHeight(1)
+    bar.pinnedSep:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", 0, 1)
+    bar.pinnedSep:SetPoint("TOPRIGHT", bar.frame, "TOPRIGHT", 0, 1)
+    bar.pinnedSep:SetColorTexture(0, 0.65, 1, 0.5)
+
+    bar.frame:Hide()
     return bar
 end
 
@@ -910,6 +934,197 @@ function UI:UpdateScrollState(listObj, dataCount)
         listObj.sb:SetValue(0)
         listObj.child:SetWidth(listObj.sf:GetWidth())
     end
+end
+
+-- ============================================================
+-- ★ 固定自己排名的辅助函数
+-- ============================================================
+
+-- 计算当前列表可视区域能显示多少行
+function UI:GetVisibleBarCount(listObj)
+    local bh, gap = self:GetBarConfig()
+    local viewH = listObj.sf:GetHeight()
+    if viewH <= 0 then return 999 end
+    return math.floor(viewH / (bh + gap))
+end
+
+-- 将固定栏定位到滚动框的底部
+function UI:PositionPinnedBar(bar, listObj)
+    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
+    bar.frame:ClearAllPoints()
+    bar.frame:SetPoint("BOTTOMLEFT",  listObj.sf, "BOTTOMLEFT",  0, 0)
+    bar.frame:SetPoint("BOTTOMRIGHT", listObj.sf, "BOTTOMRIGHT", 0, 0)
+    bar.frame:SetHeight(bh)
+    self:AnchorBarTexts(bar)
+    self:ApplyFont(bar.rank,  font, fSz - 1, fOut, fShad)
+    self:ApplyFont(bar.name,  font, fSz,     fOut, fShad)
+    self:ApplyFont(bar.value, font, fSz - 1, fOut, fShad)
+end
+
+-- 用脱战后的数据结构填充固定栏
+function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
+    self:PositionPinnedBar(pinnedBar, listObj)
+    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
+    local texPath = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
+    local textMode = ns.db.display.textColorMode or "class"
+    local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
+
+    pinnedBar.statusbar:Hide(); pinnedBar.fill:Show()
+    local cc = ns:GetClassColor(d.class) or {0.5, 0.5, 0.5}
+    local offset = ns.db.display.showSpecIcon and ((bh - 4) + 6) or 0
+    local maxBarW = math.max(1, listObj.child:GetWidth() - offset)
+    pinnedBar.fill:SetWidth(math.max(1, maxBarW * (maxV > 0 and (d.value / maxV) or 0)))
+    pinnedBar.fill:SetTexture(texPath)
+    pinnedBar.fill:SetVertexColor(cc[1], cc[2], cc[3], alpha)
+    pinnedBar.statusbar:SetStatusBarTexture(texPath)
+
+    -- 用稍深的底色区分固定栏
+    pinnedBar.bg:SetColorTexture(0.06, 0.06, 0.10, 0.97)
+
+    pinnedBar.rank:SetText(ns.db.display.showRank and (rank .. ".") or "")
+    pinnedBar.name:SetText(ns:DisplayName(d.name))
+    do
+        local nr, ng, nb
+        if textMode == "white" then nr, ng, nb = 1, 1, 1
+        elseif textMode == "custom" then local c = ns.db.display.textColor or {1,1,1}; nr, ng, nb = c[1], c[2], c[3]
+        else nr, ng, nb = cc[1], cc[2], cc[3] end
+        pinnedBar.name:SetTextColor(nr, ng, nb)
+    end
+
+    pinnedBar.value:SetText(self:MakeValueStr(d.value, dur, mode, d.perSec, d.percent))
+
+    pinnedBar._data = d; pinnedBar._mode = mode; pinnedBar._isDeath = false
+    pinnedBar._guid = d.guid; pinnedBar._nameStr = d.name; pinnedBar._classStr = d.class
+
+    if pinnedBar.specIcon then
+        local specID = d.specID
+        if d.guid == ns.state.playerGUID then
+            local idx = GetSpecialization(); if idx then specID = GetSpecializationInfo(idx) end
+        end
+        local icon = nil
+        if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
+        if not icon and d.class then icon = CLASS_ICONS[d.class] end
+        if ns.db.display.showSpecIcon and icon then
+            pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show()
+        else pinnedBar.specIcon:Hide() end
+    end
+
+    pinnedBar.frame:Show()
+end
+
+-- 用战斗中 API 数据填充固定栏
+function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType)
+    self:PositionPinnedBar(pinnedBar, listObj)
+    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
+    local texPath = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
+    local textMode = ns.db.display.textColorMode or "class"
+    local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
+
+    pinnedBar.fill:Hide(); pinnedBar.statusbar:Show()
+    local cls = src.classFilename or "WARRIOR"
+    local cc = ns:GetClassColor(cls) or {0.5, 0.5, 0.5}
+    pinnedBar.statusbar:SetStatusBarTexture(texPath)
+    pinnedBar.statusbar:SetStatusBarColor(cc[1], cc[2], cc[3], alpha)
+    pcall(function()
+        pinnedBar.statusbar:SetMinMaxValues(0, maxAmt or 1)
+        pinnedBar.statusbar:SetValue(src.totalAmount)
+    end)
+
+    pinnedBar.bg:SetColorTexture(0.06, 0.06, 0.10, 0.97)
+
+    pinnedBar.rank:SetText(ns.db.display.showRank and (rank .. ".") or "")
+    local nameStr = ""; pcall(function() nameStr = tostring(src.name or "") end)
+    pinnedBar.name:SetText(ns:DisplayName(nameStr))
+    do
+        local nr, ng, nb
+        if textMode == "white" then nr, ng, nb = 1, 1, 1
+        elseif textMode == "custom" then local c = ns.db.display.textColor or {1,1,1}; nr, ng, nb = c[1], c[2], c[3]
+        else nr, ng, nb = cc[1], cc[2], cc[3] end
+        pinnedBar.name:SetTextColor(nr, ng, nb)
+    end
+
+    if COUNT_MODES[mode] then
+        pinnedBar.value:SetFormattedText("%s" .. L["次"], AbbreviateNumbers(src.totalAmount))
+    else
+        pcall(function()
+            if ns.db.display.showPerSecond then
+                pinnedBar.value:SetFormattedText("%s (%s)", AbbreviateNumbers(src.totalAmount), AbbreviateNumbers(src.amountPerSecond))
+            else
+                pinnedBar.value:SetText(AbbreviateNumbers(src.totalAmount))
+            end
+        end)
+    end
+
+    if not pinnedBar._apiData then pinnedBar._apiData = {} end
+    pinnedBar._apiData.isAPI = true
+    pinnedBar._apiData.sourceGUID = src.sourceGUID
+    pinnedBar._apiData.sourceCreatureID = src.sourceCreatureID
+    pinnedBar._apiData.isLocalPlayer = true
+    pinnedBar._apiData.totalAmount = src.totalAmount
+    pinnedBar._apiData.amountPerSecond = src.amountPerSecond
+    pinnedBar._apiData.sessionType = sType
+    pinnedBar._data = pinnedBar._apiData
+    pinnedBar._mode = mode; pinnedBar._isDeath = false
+    pinnedBar._guid = src.sourceGUID
+    pinnedBar._nameStr = src.name; pinnedBar._classStr = cls
+
+    if pinnedBar.specIcon then
+        local specIdx = GetSpecialization()
+        local specID = specIdx and GetSpecializationInfo(specIdx) or nil
+        local icon = nil
+        if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
+        if not icon and cls then icon = CLASS_ICONS[cls] end
+        if ns.db.display.showSpecIcon and icon then
+            pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show()
+        else pinnedBar.specIcon:Hide() end
+    end
+
+    pinnedBar.frame:Show()
+end
+
+-- 脱战数据路径：检查是否需要在底部固定自己
+function UI:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count)
+    if not self._pinnedSelf then return end
+    local pinnedBar = self._pinnedSelf[listKey]
+    if not pinnedBar then return end
+
+    if not ns.db.display.alwaysShowSelf or mode == "deaths" then
+        pinnedBar.frame:Hide(); return
+    end
+
+    local selfIdx, selfData = nil, nil
+    for i, d in ipairs(data) do
+        if d.guid == ns.state.playerGUID then selfIdx = i; selfData = d; break end
+    end
+    if not selfIdx or not selfData then pinnedBar.frame:Hide(); return end
+
+    local vis = self:GetVisibleBarCount(listObj)
+    if selfIdx <= vis then pinnedBar.frame:Hide(); return end
+
+    local maxV = data[1] and data[1].value or 0
+    self:FillPinnedFromData(pinnedBar, listObj, selfData, selfIdx, dur, mode, maxV)
+end
+
+-- 战斗中 API 路径：检查是否需要在底部固定自己
+function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType)
+    if not self._pinnedSelf then return end
+    local pinnedBar = self._pinnedSelf[listKey]
+    if not pinnedBar then return end
+
+    if not ns.db.display.alwaysShowSelf or mode == "deaths" then
+        pinnedBar.frame:Hide(); return
+    end
+
+    local selfIdx, selfSrc = nil, nil
+    for i, src in ipairs(sources) do
+        if src.isLocalPlayer then selfIdx = i; selfSrc = src; break end
+    end
+    if not selfIdx or not selfSrc then pinnedBar.frame:Hide(); return end
+
+    local vis = self:GetVisibleBarCount(listObj)
+    if selfIdx <= vis then pinnedBar.frame:Hide(); return end
+
+    self:FillPinnedFromAPI(pinnedBar, listObj, selfSrc, selfIdx, mode, maxAmt, sType)
 end
 
 function UI:ApplyAllFontsIfNeeded()
@@ -1626,6 +1841,15 @@ function UI:FillBars(bars, listObj, data, dur, mode)
             bar.frame:Hide(); bar._data = nil
         end
     end
+
+    -- ★ 检查是否需要在底部固定自己的排名
+    local listKey = nil
+    if     listObj == self.priList    then listKey = "pri"
+    elseif listObj == self.secList    then listKey = "sec"
+    elseif listObj == self.ovrPriList then listKey = "ovrPri"
+    elseif listObj == self.ovrSecList then listKey = "ovrSec" end
+    if listKey then self:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count) end
+
 end
 
 function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
@@ -1820,6 +2044,15 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
             bar.frame:Hide()
         end
     end
+
+    -- ★ 检查是否需要在底部固定自己的排名
+    local listKey = nil
+    if     listObj == self.priList    then listKey = "pri"
+    elseif listObj == self.secList    then listKey = "sec"
+    elseif listObj == self.ovrPriList then listKey = "ovrPri"
+    elseif listObj == self.ovrSecList then listKey = "ovrSec" end
+    if listKey then self:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType) end
+
 end
 
 
@@ -1856,6 +2089,14 @@ function UI:FillDeathBars(seg, bars, listObj)
     -- ★ 允许外部传入 bars 和 listObj，不传则默认用主列
     bars    = bars    or self.priBars
     listObj = listObj or self.priList
+
+    -- ★ 死亡模式下隐藏固定自己的排名栏
+    if self._pinnedSelf then
+        local listKey = nil
+        if     listObj == self.priList    then listKey = "pri"
+        elseif listObj == self.ovrPriList then listKey = "ovrPri" end
+        if listKey and self._pinnedSelf[listKey] then self._pinnedSelf[listKey].frame:Hide() end
+    end
 
     local dl = ns.DeathTracker and ns.DeathTracker:GetDeathLog(seg) or {}
     local selfDeaths, otherDeaths = {}, {}

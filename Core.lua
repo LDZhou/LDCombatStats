@@ -88,6 +88,7 @@ ns.defaults = {
         fontShadow    = false,
         textColorMode = "white",       -- "class" / "white" / "custom"
         textColor     = {1.0, 1.0, 1.0},
+        alwaysShowSelf = false,
     },
     split = {
         enabled           = true,         
