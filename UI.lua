@@ -667,6 +667,26 @@ function UI:BuildBody()
         ovrPri = self:MakePinnedSelfBar(self.ovrPriList.sf, "ovrPri"),
         ovrSec = self:MakePinnedSelfBar(self.ovrSecList.sf, "ovrSec"),
     }
+
+    -- ★ 滚动钩子：滚动时实时判断固定栏显隐
+    local function hookScroll(listObj, listKey)
+        local origOnWheel = listObj.sf:GetScript("OnMouseWheel")
+        listObj.sf:SetScript("OnMouseWheel", function(frame, delta)
+            if origOnWheel then origOnWheel(frame, delta) end
+            if self._pinnedSelfCache and self._pinnedSelfCache[listKey] then
+                local args = self._pinnedSelfCache[listKey]
+                if args.type == "bars" then
+                    self:CheckPinnedSelfForBars(listKey, listObj, args.data, args.dur, args.mode, args.count)
+                elseif args.type == "api" then
+                    self:CheckPinnedSelfForAPI(listKey, listObj, args.sources, args.mode, args.maxAmt, args.sType)
+                end
+            end
+        end)
+    end
+    hookScroll(self.priList,    "pri")
+    hookScroll(self.secList,    "sec")
+    hookScroll(self.ovrPriList, "ovrPri")
+    hookScroll(self.ovrSecList, "ovrSec")
 end
 
 function UI:MakeSectHead(parent)
@@ -762,12 +782,10 @@ function UI:MakePinnedSelfBar(sf, section)
     bar.frame:SetFrameLevel(sf:GetFrameLevel() + 10)
     bar._isPinned = true
 
-    -- 顶部蓝色强调线，和普通行做出视觉区分
-    bar.pinnedSep = bar.frame:CreateTexture(nil, "OVERLAY")
-    bar.pinnedSep:SetHeight(1)
-    bar.pinnedSep:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", 0, 1)
-    bar.pinnedSep:SetPoint("TOPRIGHT", bar.frame, "TOPRIGHT", 0, 1)
-    bar.pinnedSep:SetColorTexture(0, 0.65, 1, 0.5)
+    -- ★ 完全不透明底板，覆盖整行区域（包括图标位置）
+    bar.pinnedBg = bar.frame:CreateTexture(nil, "BACKGROUND", nil, 7)
+    bar.pinnedBg:SetAllPoints(bar.frame)
+    -- 颜色在 PositionPinnedBar 里同步
 
     bar.frame:Hide()
     return bar
@@ -961,25 +979,53 @@ function UI:PositionPinnedBar(bar, listObj)
     self:ApplyFont(bar.value, font, fSz - 1, fOut, fShad)
 end
 
--- 用脱战后的数据结构填充固定栏
+function UI:IsSelfVisibleInViewport(listObj, selfIdx)
+    local bh, gap = self:GetBarConfig()
+    local rowH = bh + gap
+    if rowH <= 0 then return true end
+
+    local viewH = listObj.sf:GetHeight()
+    local scrollOffset = listObj.sf:GetVerticalScroll() or 0
+
+    local selfTop    = (selfIdx - 1) * rowH
+    local selfBottom = selfTop + bh
+
+    local viewTop    = scrollOffset
+    local viewBottom = scrollOffset + viewH
+
+    -- 自己的行完全在可视区域内
+    return selfTop >= viewTop and selfBottom <= viewBottom
+end
+
+function UI:PositionPinnedBar(pinnedBar, listObj)
+    local bh, gap, _, font, fSz, fOut, fShad = self:GetBarConfig()
+    pinnedBar.frame:ClearAllPoints()
+    pinnedBar.frame:SetPoint("BOTTOMLEFT",  listObj.sf, "BOTTOMLEFT",  0, 0)
+    pinnedBar.frame:SetPoint("BOTTOMRIGHT", listObj.sf, "BOTTOMRIGHT", 0, 0)
+    pinnedBar.frame:SetHeight(bh)
+    self:AnchorBarTexts(pinnedBar)
+    self:ApplyFont(pinnedBar.rank,  font, fSz - 1, fOut, fShad)
+    self:ApplyFont(pinnedBar.name,  font, fSz,     fOut, fShad)
+    self:ApplyFont(pinnedBar.value, font, fSz - 1, fOut, fShad)
+
+    pinnedBar.pinnedBg:SetColorTexture(0.02, 0.02, 0.03, 1)
+end
+
 function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
     self:PositionPinnedBar(pinnedBar, listObj)
-    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
-    local texPath = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
+    local bh, gap, alpha = self:GetBarConfig()
+    local texPath  = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
     local textMode = ns.db.display.textColorMode or "class"
     local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 
     pinnedBar.statusbar:Hide(); pinnedBar.fill:Show()
     local cc = ns:GetClassColor(d.class) or {0.5, 0.5, 0.5}
-    local offset = ns.db.display.showSpecIcon and ((bh - 4) + 6) or 0
+    local offset = ns.db.display.showSpecIcon and (bh + 4) or 0
     local maxBarW = math.max(1, listObj.child:GetWidth() - offset)
     pinnedBar.fill:SetWidth(math.max(1, maxBarW * (maxV > 0 and (d.value / maxV) or 0)))
     pinnedBar.fill:SetTexture(texPath)
     pinnedBar.fill:SetVertexColor(cc[1], cc[2], cc[3], alpha)
     pinnedBar.statusbar:SetStatusBarTexture(texPath)
-
-    -- 用稍深的底色区分固定栏
-    pinnedBar.bg:SetColorTexture(0.06, 0.06, 0.10, 0.97)
 
     pinnedBar.rank:SetText(ns.db.display.showRank and (rank .. ".") or "")
     pinnedBar.name:SetText(ns:DisplayName(d.name))
@@ -990,7 +1036,6 @@ function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
         else nr, ng, nb = cc[1], cc[2], cc[3] end
         pinnedBar.name:SetTextColor(nr, ng, nb)
     end
-
     pinnedBar.value:SetText(self:MakeValueStr(d.value, dur, mode, d.perSec, d.percent))
 
     pinnedBar._data = d; pinnedBar._mode = mode; pinnedBar._isDeath = false
@@ -1008,15 +1053,13 @@ function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV)
             pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show()
         else pinnedBar.specIcon:Hide() end
     end
-
     pinnedBar.frame:Show()
 end
 
--- 用战斗中 API 数据填充固定栏
 function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType)
     self:PositionPinnedBar(pinnedBar, listObj)
-    local bh, gap, alpha, font, fSz, fOut, fShad = self:GetBarConfig()
-    local texPath = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
+    local bh, gap, alpha = self:GetBarConfig()
+    local texPath  = ns.db.display.barTexture or "Interface\\Buttons\\WHITE8X8"
     local textMode = ns.db.display.textColorMode or "class"
     local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 
@@ -1029,8 +1072,6 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
         pinnedBar.statusbar:SetMinMaxValues(0, maxAmt or 1)
         pinnedBar.statusbar:SetValue(src.totalAmount)
     end)
-
-    pinnedBar.bg:SetColorTexture(0.06, 0.06, 0.10, 0.97)
 
     pinnedBar.rank:SetText(ns.db.display.showRank and (rank .. ".") or "")
     local nameStr = ""; pcall(function() nameStr = tostring(src.name or "") end)
@@ -1065,8 +1106,7 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     pinnedBar._apiData.sessionType = sType
     pinnedBar._data = pinnedBar._apiData
     pinnedBar._mode = mode; pinnedBar._isDeath = false
-    pinnedBar._guid = src.sourceGUID
-    pinnedBar._nameStr = src.name; pinnedBar._classStr = cls
+    pinnedBar._guid = src.sourceGUID; pinnedBar._nameStr = src.name; pinnedBar._classStr = cls
 
     if pinnedBar.specIcon then
         local specIdx = GetSpecialization()
@@ -1078,15 +1118,17 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
             pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show()
         else pinnedBar.specIcon:Hide() end
     end
-
     pinnedBar.frame:Show()
 end
 
--- 脱战数据路径：检查是否需要在底部固定自己
 function UI:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count)
     if not self._pinnedSelf then return end
     local pinnedBar = self._pinnedSelf[listKey]
     if not pinnedBar then return end
+
+    -- 缓存参数供滚动钩子使用
+    if not self._pinnedSelfCache then self._pinnedSelfCache = {} end
+    self._pinnedSelfCache[listKey] = { type = "bars", data = data, dur = dur, mode = mode, count = count }
 
     if not ns.db.display.alwaysShowSelf or mode == "deaths" then
         pinnedBar.frame:Hide(); return
@@ -1098,18 +1140,21 @@ function UI:CheckPinnedSelfForBars(listKey, listObj, data, dur, mode, count)
     end
     if not selfIdx or not selfData then pinnedBar.frame:Hide(); return end
 
-    local vis = self:GetVisibleBarCount(listObj)
-    if selfIdx <= vis then pinnedBar.frame:Hide(); return end
+    if self:IsSelfVisibleInViewport(listObj, selfIdx) then
+        pinnedBar.frame:Hide(); return
+    end
 
     local maxV = data[1] and data[1].value or 0
     self:FillPinnedFromData(pinnedBar, listObj, selfData, selfIdx, dur, mode, maxV)
 end
 
--- 战斗中 API 路径：检查是否需要在底部固定自己
 function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType)
     if not self._pinnedSelf then return end
     local pinnedBar = self._pinnedSelf[listKey]
     if not pinnedBar then return end
+
+    if not self._pinnedSelfCache then self._pinnedSelfCache = {} end
+    self._pinnedSelfCache[listKey] = { type = "api", sources = sources, mode = mode, maxAmt = maxAmt, sType = sType }
 
     if not ns.db.display.alwaysShowSelf or mode == "deaths" then
         pinnedBar.frame:Hide(); return
@@ -1121,8 +1166,9 @@ function UI:CheckPinnedSelfForAPI(listKey, listObj, sources, mode, maxAmt, sType
     end
     if not selfIdx or not selfSrc then pinnedBar.frame:Hide(); return end
 
-    local vis = self:GetVisibleBarCount(listObj)
-    if selfIdx <= vis then pinnedBar.frame:Hide(); return end
+    if self:IsSelfVisibleInViewport(listObj, selfIdx) then
+        pinnedBar.frame:Hide(); return
+    end
 
     self:FillPinnedFromAPI(pinnedBar, listObj, selfSrc, selfIdx, mode, maxAmt, sType)
 end
@@ -1330,7 +1376,7 @@ end
 
 function UI:AnchorBarTexts(bar)
     local rowH = ns.db.display.barHeight or 18
-    local iconSize = rowH - 4
+    local iconSize = rowH
     
     -- 读取新的厚度和偏移量配置（如果没有设置旧配置兜底，则默认填满整行）
     local thickness = ns.db.display.barThickness or rowH
@@ -1341,7 +1387,7 @@ function UI:AnchorBarTexts(bar)
         bar.specIcon:ClearAllPoints()
         bar.specIcon:SetPoint("LEFT", bar.frame, "LEFT", 2, 0)
         
-        local offset = iconSize + 6
+        local offset = iconSize + 4
         
         -- ★ 背景、填充、状态条改为由 BOTTOMLEFT 和 SetHeight 决定，实现解绑
         bar.bg:ClearAllPoints()
@@ -1780,7 +1826,7 @@ function UI:FillBars(bars, listObj, data, dur, mode)
             bar.statusbar:Hide(); bar.fill:Show()
             local cc = ns:GetClassColor(d.class) or {0.5, 0.5, 0.5}
             
-            local offset = ns.db.display.showSpecIcon and ((bh - 4) + 6) or 0
+            local offset = ns.db.display.showSpecIcon and (bh + 4) or 0
             local maxBarWidth = math.max(1, listObj.child:GetWidth() - offset)
             bar.fill:SetWidth(math.max(1, maxBarWidth * (maxV > 0 and (d.value / maxV) or 0)))
             

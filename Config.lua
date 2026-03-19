@@ -27,7 +27,7 @@ function Config:GetSharedMediaTextures()
     end
 
     -- 从 SharedMedia 获取所有已注册的 StatusBar 材质
-    local LSM = ns.LSM
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
     if LSM then
         local list = LSM:List(LSM.MediaType.STATUSBAR)
         if list then
@@ -54,7 +54,7 @@ function Config:GetSharedMediaFonts()
     local builtinPaths = {}
     for _, b in ipairs(result) do builtinPaths[b.v] = true end
 
-    local LSM = ns.LSM
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
     if LSM then
         local list = LSM:List(LSM.MediaType.FONT)
         if list then
@@ -1032,6 +1032,9 @@ function Config:Slider(p, label, y, mn, mx, step, getter, setter, isPercent)
 end
 
 function Config:Dropdown(p, label, y, opts, getter, setter)
+    local MAX_VISIBLE = 10  -- 下拉列表最多显示10行，超出则滚动
+    local ITEM_H = 20
+
     local lt = p:CreateFontString(nil, "OVERLAY"); lt:SetFont(STANDARD_TEXT_FONT, 10, ""); lt:SetPoint("TOPLEFT", 6, y); lt:SetTextColor(0.7, 0.7, 0.7); lt:SetText(label)
     y = y - 16
     local btn = CreateFrame("Button", nil, p); btn:SetSize(220, 20); btn:SetPoint("TOPLEFT", 6, y); self:FillBg(btn, 0.1, 0.1, 0.15, 1); self:CreateBorder(btn, 0.3, 0.3, 0.4, 1)
@@ -1041,65 +1044,160 @@ function Config:Dropdown(p, label, y, opts, getter, setter)
     local arrow = btn:CreateTexture(nil, "OVERLAY")
     arrow:SetSize(12, 12)
     arrow:SetPoint("RIGHT", -6, 0)
-    -- ★ 修正：默认关闭状态，显示向下的“展开”图标 (btn_expand)
     arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_expand.tga")
     arrow:SetVertexColor(0.7, 0.7, 0.7)
     
     local hlBtn = btn:CreateTexture(nil, "HIGHLIGHT"); hlBtn:SetAllPoints(); hlBtn:SetColorTexture(1, 1, 1, 0.05)
     
-    local function refreshText() local cur = getter(); for _, o in ipairs(opts) do if o.v == cur then bt:SetText(o.l); return end end; bt:SetText(opts[1].l) end; refreshText()
+    local function refreshText()
+        local cur = getter()
+        for _, o in ipairs(opts) do
+            if o.v == cur then bt:SetText(o.l); return end
+        end
+        bt:SetText(opts[1] and opts[1].l or "")
+    end
+    refreshText()
     
-    local blocker = CreateFrame("Button", nil, p); blocker:SetAllPoints(UIParent); blocker:SetFrameStrata("TOOLTIP"); blocker:SetFrameLevel(90); blocker:Hide(); 
+    local blocker = CreateFrame("Button", nil, p); blocker:SetAllPoints(UIParent); blocker:SetFrameStrata("TOOLTIP"); blocker:SetFrameLevel(90); blocker:Hide()
     blocker:SetScript("OnClick", function() 
-        blocker:Hide() 
-        -- ★ 修正：点击空白处收起时，恢复向下的“展开”图标
+        blocker:Hide()
         arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_expand.tga")
     end)
     
-    local list = CreateFrame("Frame", nil, blocker); list:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2); list:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2); list:SetHeight(#opts * 20 + 4); list:SetFrameLevel(95); self:FillBg(list, 0.08, 0.08, 0.1, 1); self:CreateBorder(list, 0.3, 0.3, 0.4, 1)
-    
+    -- ★ 下拉列表容器（带滚动支持）
+    local visibleCount = math.min(#opts, MAX_VISIBLE)
+    local listH = visibleCount * ITEM_H + 4
+    local needScroll = #opts > MAX_VISIBLE
+
+    local list = CreateFrame("Frame", nil, blocker)
+    list:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+    list:SetSize(220, listH)
+    list:SetFrameLevel(95)
+    self:FillBg(list, 0.08, 0.08, 0.1, 1)
+    self:CreateBorder(list, 0.3, 0.3, 0.4, 1)
+
+    -- 滚动框架
+    local sf = CreateFrame("ScrollFrame", nil, list)
+    sf:SetPoint("TOPLEFT", 2, -2)
+    if needScroll then
+        sf:SetPoint("BOTTOMRIGHT", -6, 2)  -- 给滚动条留空间
+    else
+        sf:SetPoint("BOTTOMRIGHT", -2, 2)
+    end
+
+    local child = CreateFrame("Frame", nil, sf)
+    child:SetWidth(needScroll and 208 or 216)
+    child:SetHeight(#opts * ITEM_H)
+    sf:SetScrollChild(child)
+
+    -- 滚动条（仅在需要时创建）
+    local sb
+    if needScroll then
+        sb = CreateFrame("Slider", nil, list)
+        sb:SetWidth(4)
+        sb:SetPoint("TOPRIGHT", list, "TOPRIGHT", -2, -2)
+        sb:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", -2, 2)
+        sb:SetOrientation("VERTICAL")
+        sb:SetMinMaxValues(0, math.max(0, (#opts - MAX_VISIBLE) * ITEM_H))
+        sb:SetValue(0)
+        sb:SetValueStep(1)
+
+        local sbTrack = sb:CreateTexture(nil, "BACKGROUND")
+        sbTrack:SetAllPoints(); sbTrack:SetColorTexture(0.05, 0.05, 0.06, 1)
+
+        sb:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
+        local sbThumb = sb:GetThumbTexture()
+        sbThumb:SetVertexColor(0.3, 0.3, 0.35, 1); sbThumb:SetSize(4, 20)
+
+        sb:SetScript("OnEnter", function() sbThumb:SetVertexColor(0.4, 0.4, 0.45, 1) end)
+        sb:SetScript("OnLeave", function() sbThumb:SetVertexColor(0.3, 0.3, 0.35, 1) end)
+        sb:SetScript("OnValueChanged", function(_, val) sf:SetVerticalScroll(val) end)
+
+        sf:SetScript("OnMouseWheel", function(_, delta)
+            local cur = sb:GetValue()
+            local _, mx = sb:GetMinMaxValues()
+            sb:SetValue(math.max(0, math.min(mx, cur - delta * ITEM_H * 2)))
+        end)
+
+        -- 列表本身也支持滚轮
+        list:EnableMouseWheel(true)
+        list:SetScript("OnMouseWheel", function(_, delta)
+            local cur = sb:GetValue()
+            local _, mx = sb:GetMinMaxValues()
+            sb:SetValue(math.max(0, math.min(mx, cur - delta * ITEM_H * 2)))
+        end)
+    end
+
+    -- 生成选项行
     btn.items = {}
     for i, o in ipairs(opts) do
-        local item = CreateFrame("Button", nil, list); item:SetHeight(20); item:SetPoint("TOPLEFT", list, "TOPLEFT", 2, -((i-1)*20 + 2)); item:SetPoint("TOPRIGHT", list, "TOPRIGHT", -2, -((i-1)*20 + 2))
+        local item = CreateFrame("Button", nil, child); item:SetHeight(ITEM_H)
+        item:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -((i-1) * ITEM_H))
+        item:SetPoint("TOPRIGHT", child, "TOPRIGHT", 0, -((i-1) * ITEM_H))
         local hl = item:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(0, 0.75, 1, 0.2)
         local itx = item:CreateFontString(nil, "OVERLAY"); itx:SetFont(STANDARD_TEXT_FONT, 11, ""); itx:SetPoint("LEFT", 6, 0); itx:SetTextColor(0.8, 0.8, 0.8); itx:SetText(o.l)
         item:SetScript("OnClick", function() 
-            setter(o.v); 
-            bt:SetText(o.l); 
-            blocker:Hide() 
-            -- ★ 修正：选中选项收起时，恢复向下的“展开”图标
+            setter(o.v); bt:SetText(o.l); blocker:Hide()
             arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_expand.tga")
         end)
+
+        -- 选项行也传递滚轮事件
+        if needScroll then
+            item:EnableMouseWheel(true)
+            item:SetScript("OnMouseWheel", function(_, delta)
+                local cur = sb:GetValue()
+                local _, mx = sb:GetMinMaxValues()
+                sb:SetValue(math.max(0, math.min(mx, cur - delta * ITEM_H * 2)))
+            end)
+        end
+
         table.insert(btn.items, {btn = item, txt = itx})
     end
 
+    -- ★ UpdateOpts：动态更新选项时也需要重算滚动
     btn.UpdateOpts = function(newOpts)
         opts = newOpts
+        local newNeedScroll = #opts > MAX_VISIBLE
+        local newVisCount = math.min(#opts, MAX_VISIBLE)
+        local newListH = newVisCount * ITEM_H + 4
+        list:SetHeight(newListH)
+        child:SetHeight(#opts * ITEM_H)
+
+        if sb then
+            if newNeedScroll then
+                sb:SetMinMaxValues(0, math.max(0, (#opts - MAX_VISIBLE) * ITEM_H))
+                sb:SetValue(0)
+                sb:Show()
+            else
+                sb:Hide(); sb:SetValue(0)
+            end
+        end
+
         for i, o in ipairs(opts) do
             local row = btn.items[i]
             if row then
                 row.txt:SetText(o.l)
                 row.btn:SetScript("OnClick", function() 
-                    setter(o.v); 
-                    bt:SetText(o.l); 
-                    blocker:Hide() 
-                    -- ★ 修正：选中选项收起时，恢复向下的“展开”图标
+                    setter(o.v); bt:SetText(o.l); blocker:Hide()
                     arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_expand.tga")
                 end)
+                row.btn:Show()
             end
+        end
+        for i = #opts + 1, #btn.items do
+            btn.items[i].btn:Hide()
         end
         refreshText()
     end
     
     btn:SetScript("OnClick", function() 
         if blocker:IsShown() then 
-            blocker:Hide() 
-            -- ★ 修正：主动点击收起时，恢复向下的“展开”图标
+            blocker:Hide()
             arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_expand.tga")
         else 
-            blocker:Show() 
-            -- ★ 修正：展开时，切换为向上的“收起”图标 (btn_collapse)
+            blocker:Show()
             arrow:SetTexture("Interface\\AddOns\\"..addonName.."\\Textures\\btn_collapse.tga")
+            if sb then sb:SetValue(0) end  -- 每次打开回到顶部
         end 
     end)
     
