@@ -9,7 +9,7 @@
 ## Category: Combat
 ## IconTexture: Interface\AddOns\LDCombatStats\Textures\logo.tga
 
-Libs\LibSharedMedia-3.0\lib.xml
+Libs\embeds.xml
 
 Locale.lua
 Core.lua
