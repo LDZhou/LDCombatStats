@@ -184,11 +184,17 @@ function UI:Build()
 
     -- 鼠标悬停检测（OnUpdate 轮询，子控件不会误触）
     local fadeHoverFrame = CreateFrame("Frame")
-    fadeHoverFrame:SetScript("OnUpdate", function()
+    fadeHoverFrame._timer = 0
+    fadeHoverFrame:SetScript("OnUpdate", function(frame, elapsed)
+        -- ★ 性能优化：每 0.1 秒检测一次，而不是每帧
+        frame._timer = frame._timer + elapsed
+        if frame._timer < 0.1 then return end
+        frame._timer = 0
+
+        if not self._faded then return end
         if not ns.db or not ns.db.fade then return end
         if not (ns.db.fade.fadeBars or ns.db.fade.fadeBody) then return end
         if not ns.db.fade.unfadeOnHover then return end
-        if not self._faded then return end
         if not self.frame or not self.frame:IsShown() then return end
 
         local isOver = self.frame:IsMouseOver()
@@ -704,7 +710,7 @@ function UI:MakeBar(parent, section, index)
     bar.frame = CreateFrame("Button", nil, parent)
     bar.frame:SetHeight(BAR_H); bar.frame:RegisterForClicks("LeftButtonUp","RightButtonUp"); bar.frame:Hide()
 
-    bar.bg = bar.frame:CreateTexture(nil,"BACKGROUND"); bar.bg:SetAllPoints(); bar.bg:SetColorTexture(0.1, 0.1, 0.12, 0.5)
+    bar.bg = bar.frame:CreateTexture(nil,"BACKGROUND"); bar.bg:SetAllPoints(); bar.bg:SetColorTexture(0.1, 0.1, 0.12, 0)
     bar.fill = bar.frame:CreateTexture(nil,"BORDER"); bar.fill:SetPoint("TOPLEFT"); bar.fill:SetPoint("BOTTOMLEFT")
     bar.fill:SetTexture("Interface\\Buttons\\WHITE8X8"); bar.fill:SetWidth(1)
 
@@ -916,6 +922,11 @@ function UI:GetBarConfig()
 end
 
 function UI:ApplyFont(fs, font, size, outline, shadow)
+    -- ★ 性能优化：参数没变时跳过 SetFont
+    local hash = font .. "|" .. size .. "|" .. (outline or "") .. "|" .. (shadow and "1" or "0")
+    if fs._fontHash == hash then return end
+    fs._fontHash = hash
+
     fs:SetFont(font, size, outline)
     if shadow then
         fs:SetShadowColor(0, 0, 0, 1)
@@ -1485,6 +1496,13 @@ end
 function UI:AnchorBarTexts(bar)
     local rowH = ns.db.display.barHeight or 18
     local iconSize = rowH
+
+    local hash = (ns.db.display.showSpecIcon and "1" or "0")
+              .. "|" .. rowH
+              .. "|" .. (ns.db.display.barThickness or rowH)
+              .. "|" .. (ns.db.display.barVOffset or 0)
+    if bar._anchorHash == hash then return end
+    bar._anchorHash = hash
     
     -- 读取新的厚度和偏移量配置（如果没有设置旧配置兜底，则默认填满整行）
     local thickness = ns.db.display.barThickness or rowH
@@ -1552,7 +1570,11 @@ end
 function UI:Refresh()
     if not self.frame or not self.frame:IsShown() then return end
 
-    self._sessionCache = {}  -- ← 加这一行，每次刷新清空缓存
+    if self._sessionCache then
+        wipe(self._sessionCache)
+    else
+        self._sessionCache = {}
+    end -- ← 加这一行，每次刷新清空缓存
 
     local seg  = ns.Segments and ns.Segments:GetViewSegment()
     local dur  = ns.Analysis  and ns.Analysis:GetSegmentDuration(seg) or 0
