@@ -281,6 +281,7 @@ function Core:OnInitialize()
                         local offset = ns.state.inCombat and 1 or 0
                         ns.CombatTracker._baselineSessionCount = math.max(0, cnt - offset)
                         ns.CombatTracker._lastProcessedCount   = math.max(0, cnt - offset)
+                        ns.CombatTracker._initialBaselineSet   = true
                     end
                     
                     if ns.Segments and ns.Segments.overall then

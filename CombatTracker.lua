@@ -49,7 +49,7 @@ CT._exitingInstanceTag   = nil
 CT._currentMythicLevel   = 0    -- CHALLENGE_MODE_START 时记录层数，出副本传给 mergeAndCleanInstance
 CT._currentMythicMapName = nil  -- CHALLENGE_MODE_START 时记录正确的M+地图名（来自 C_ChallengeMode.GetMapUIInfo）
 CT._currentInstanceName  = nil  -- ENCOUNTER_START 时记录副本名（GetInstanceInfo），用于 M+中途放弃场景的合并命名
-
+CT._initialBaselineSet   = false
 
 -- ============================================================
 -- 辅助
@@ -214,7 +214,7 @@ local function processArchivedSessions()
             local sid = s.sessionID
             local dur = s.durationSeconds or 0
 
-            if dur == 0 and (s.name == nil or s.name == "") then
+            if dur == 0 then
                 -- skip 空占位
             elseif dur >= (ns.db and ns.db.tracking and ns.db.tracking.minCombatTime or 2) then
                 local isBoss = false
@@ -824,6 +824,7 @@ local function mergeAndCleanInstance(instanceTag, mythicLevel, mythicMapName, in
             end
             CT._baselineSessionCount = 0
             CT._lastProcessedCount   = 0
+            CT._initialBaselineSet   = false
             ns.Segments.overall = ns.Segments:NewSegment("overall", L["总计"])
         end
     end
@@ -1099,7 +1100,7 @@ local function waitAndProcessArchived()
             
             -- 2. 【新增防丢补丁】检查暴雪是否还没来得及生成战斗名称和时长
             -- 如果还没生成，让 ticker 再等 0.5 秒，不要急着放行给 processArchivedSessions 去跳过它
-            if (s.durationSeconds or 0) == 0 and (s.name == nil or s.name == "") then
+            if (s.durationSeconds or 0) == 0 then
                 return true
             end
         end
@@ -1271,6 +1272,7 @@ function CT:ResetMeterForNewRun()
     end
     CT._baselineSessionCount = 0
     CT._lastProcessedCount   = 0
+    CT._initialBaselineSet   = true
     CT._bossSessionIndices   = {}
     if ns.MythicPlus then ns.MythicPlus:ResetBaseline() end
 end
@@ -1282,12 +1284,14 @@ function CT:MarkReset()
     end
     CT._baselineSessionCount = 0
     CT._lastProcessedCount   = 0
+    CT._initialBaselineSet   = true
 end
 
 function CT:SetBaseline()
     local sessions = C_DamageMeter.GetAvailableCombatSessions()
     CT._baselineSessionCount = sessions and #sessions or 0
     CT._lastProcessedCount   = CT._baselineSessionCount
+    CT._initialBaselineSet   = true
 end
 
 function CT:ResetBaselineToCurrentCount()
@@ -1295,6 +1299,7 @@ function CT:ResetBaselineToCurrentCount()
     local count    = sessions and #sessions or 0
     CT._baselineSessionCount = count
     CT._lastProcessedCount   = count
+    CT._initialBaselineSet   = true
     CT._bossSessionIndices   = {}
 end
 
@@ -1577,7 +1582,8 @@ function CT:RegisterEvents()
             local isExiting = (CT._exitingInstanceTag ~= nil) or (CT._pendingMergeArgs ~= nil) or isTransitioningOut
             
             -- 加入了 CT._lastProcessedCount == 0 的条件，防止连续战斗错误推移 baseline
-            if not ns.state.isInInstance and CT._baselineSessionCount == 0 and CT._lastProcessedCount == 0 and not isExiting then
+            if not ns.state.isInInstance and not CT._initialBaselineSet and CT._baselineSessionCount == 0 and CT._lastProcessedCount == 0 and not isExiting then
+                CT._initialBaselineSet = true
                 local ss = C_DamageMeter.GetAvailableCombatSessions()
                 local sc = ss and #ss or 0
                 if sc > 0 then
