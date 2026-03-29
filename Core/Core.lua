@@ -48,6 +48,9 @@ ns.defaults = {
         width = 400, height = 280,
         point = "BOTTOMRIGHT", relPoint = "BOTTOMRIGHT", x = -20, y = 180,
         alpha = 0.92, scale = 1.0, configScale = 1.0, locked = false, visible = true,
+        rememberSceneSize = false,
+        sceneAnchor = "TOPLEFT",
+        sceneSizes = {},
         themeColor = {0, 0.85, 0.85, 0.05},
         bgColor    = {0, 0.7, 0.7, 0},
         ovrBgColor = {1, 1, 1, 0.05},
@@ -89,6 +92,7 @@ ns.defaults = {
         textColor     = {1.0, 1.0, 1.0},
         alwaysShowSelf = false,
         useShortTabs   = false,
+        damageTakenView = "friendly",
     },
     split = {
         enabled           = true,
@@ -142,7 +146,7 @@ ns.state = {
     mythicPlusLevel  = 0,
     playerGUID       = nil,
     playerName       = nil,
-    damageTakenView  = "friendly",
+    damageTakenView  = nil,
     playerClass      = nil,
 }
 
@@ -287,6 +291,7 @@ function Core:OnInitialize()
         ns.state.playerName = UnitName("player")
         local _, classEng   = UnitClass("player")
         ns.state.playerClass = classEng
+        ns.state.damageTakenView = ns.db.display.damageTakenView or "friendly"
 
         if ns.Segments then
             ns.Segments:Init()
@@ -567,6 +572,11 @@ function ns:UpdateInstanceStatus()
 
     if ns.state.inMythicPlus and not wasInMPlus then
         if ns.MythicPlus then ns.MythicPlus:OnEnterDungeon() end
+    end
+
+    -- 按场景记忆窗口尺寸
+    if oldCat ~= cat and ns.UI and ns.UI.frame and ns.UI.frame:IsShown() then
+        if ns.UI.ApplySceneSize then ns.UI:ApplySceneSize(cat) end
     end
 end
 

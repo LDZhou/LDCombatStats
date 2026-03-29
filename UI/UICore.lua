@@ -151,6 +151,7 @@ function UI:ApplyAllFonts()
     if not self.frame then return end
     local _, _, _, font, fSz, fOut, fShad = self:GetBarConfig()
     if self.titleText then self:ApplyFont(self.titleText, font, fSz, fOut, fShad) end
+    if self.titleTime then self:ApplyFont(self.titleTime, font, fSz, fOut, fShad) end
     if self.summText then self:ApplyFont(self.summText, font, fSz - 1, fOut, fShad) end
     local function applyHead(h)
         if h then self:ApplyFont(h.label, font, fSz - 1, fOut, fShad); self:ApplyFont(h.info, font, fSz - 1, fOut, fShad) end
@@ -179,6 +180,11 @@ function UI:Build()
 
     local f = CreateFrame("Frame","LightDamageFrame",UIParent,"BackdropTemplate")
     f:SetSize(db.width, db.height)
+    if db.rememberSceneSize and db.sceneSizes then
+        local cat = ns.state.instanceCategory or "outdoor"
+        local s = db.sceneSizes[cat]
+        if s then f:SetSize(s.width, s.height) end
+    end
     f:SetPoint(db.point, UIParent, db.relPoint, db.x, db.y)
     f:SetScale(db.scale); f:SetAlpha(db.alpha)
     f:SetFrameStrata("MEDIUM"); f:SetFrameLevel(10)
@@ -260,6 +266,13 @@ function UI:BuildTitle()
 
     local rstBtn = self:IconBtn(b, TEX.."btn_reset", TEX.."btn_reset", 20, function() if ns.Segments then ns.Segments:ResetAll() end end)
     rstBtn:SetPoint("RIGHT", cfgBtn, "LEFT", -2, 0); self.rstBtn = rstBtn
+
+    self.titleTime = self:FS(b, 10, "OUTLINE")
+    self.titleTime:SetPoint("RIGHT", rstBtn, "LEFT", -4, 0)
+    self.titleTime:SetJustifyH("RIGHT"); self.titleTime:SetTextColor(0.67, 0.67, 0.67)
+    self.titleText:ClearAllPoints()
+    self.titleText:SetPoint("LEFT", listBtn, "RIGHT", 4, 0)
+    self.titleText:SetPoint("RIGHT", self.titleTime, "LEFT", -2, 0)
 end
 
 function UI:BuildMPlusSummary()
@@ -302,6 +315,7 @@ function UI:MakeSectHead(parent)
     local dtFriendlyText = self:FS(dtFriendly, 8, "OUTLINE"); dtFriendlyText:SetPoint("CENTER")
     dtFriendly:SetScript("OnClick", function()
         ns.state.damageTakenView = "friendly"
+        if ns.db and ns.db.display then ns.db.display.damageTakenView = "friendly" end
         if ns.Analysis then ns.Analysis:InvalidateCache() end
         if ns.UI then ns.UI:Refresh() end
     end)
@@ -312,6 +326,7 @@ function UI:MakeSectHead(parent)
     local dtEnemyText = self:FS(dtEnemy, 8, "OUTLINE"); dtEnemyText:SetPoint("CENTER")
     dtEnemy:SetScript("OnClick", function()
         ns.state.damageTakenView = "enemy"
+        if ns.db and ns.db.display then ns.db.display.damageTakenView = "enemy" end
         if ns.Analysis then ns.Analysis:InvalidateCache() end
         if ns.UI then ns.UI:Refresh() end
     end)
@@ -378,7 +393,14 @@ function UI:BuildResize()
     g:SetScript("OnMouseDown", function() if ns.db.window.locked then return end; self.frame:StartSizing("BOTTOMRIGHT"); self._resizing = true end)
     g:SetScript("OnMouseUp", function()
         if not self._resizing then return end; self._resizing = false; self.frame:StopMovingOrSizing()
-        ns.db.window.width = self.frame:GetWidth(); ns.db.window.height = self.frame:GetHeight(); self:Layout()
+        local w, h = self.frame:GetWidth(), self.frame:GetHeight()
+        ns.db.window.width = w; ns.db.window.height = h
+        if ns.db.window.rememberSceneSize then
+            local cat = ns.state.instanceCategory or "outdoor"
+            if not ns.db.window.sceneSizes then ns.db.window.sceneSizes = {} end
+            ns.db.window.sceneSizes[cat] = { width = w, height = h }
+        end
+        self:Layout()
     end)
 end
 
@@ -422,4 +444,41 @@ function UI:UpdateScrollState(listObj, dataCount)
     listObj.sb:SetMinMaxValues(0, maxScroll)
     if maxScroll > 0 then listObj.sb:Show(); listObj.child:SetWidth(listObj.sf:GetWidth() - 4)
     else listObj.sb:Hide(); listObj.sb:SetValue(0); listObj.child:SetWidth(listObj.sf:GetWidth()) end
+end
+
+function UI:ApplySceneSize(cat)
+    if not self.frame or not self.frame:IsShown() then return end
+    if not ns.db.window.rememberSceneSize then return end
+    local sizes = ns.db.window.sceneSizes
+    if not sizes or not sizes[cat] then return end
+    local s = sizes[cat]
+    local anchor = ns.db.window.sceneAnchor or "TOPLEFT"
+
+    local left, bottom = self.frame:GetLeft(), self.frame:GetBottom()
+    local oldW, oldH = self.frame:GetWidth(), self.frame:GetHeight()
+    if not left or not bottom then return end
+
+    local ax, ay
+    if anchor:find("LEFT") then ax = left
+    elseif anchor:find("RIGHT") then ax = left + oldW
+    else ax = left + oldW / 2 end
+    if anchor:find("TOP") then ay = bottom + oldH
+    elseif anchor:find("BOTTOM") then ay = bottom
+    else ay = bottom + oldH / 2 end
+
+    self.frame:SetSize(s.width, s.height)
+
+    local newLeft, newBottom
+    if anchor:find("LEFT") then newLeft = ax
+    elseif anchor:find("RIGHT") then newLeft = ax - s.width
+    else newLeft = ax - s.width / 2 end
+    if anchor:find("TOP") then newBottom = ay - s.height
+    elseif anchor:find("BOTTOM") then newBottom = ay
+    else newBottom = ay - s.height / 2 end
+
+    self.frame:ClearAllPoints()
+    self.frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", newLeft, newBottom)
+    local point, _, relPoint, x, y = self.frame:GetPoint()
+    ns.db.window.point = point; ns.db.window.relPoint = relPoint; ns.db.window.x = x; ns.db.window.y = y
+    self:Layout()
 end

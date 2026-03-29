@@ -89,7 +89,13 @@ function Config:ApplyPreviewScene(sceneId)
     ns.state.inCombat = false; ns.state.isInInstance = (sceneId ~= "outdoor"); ns.state.inMythicPlus = (sceneId == "mplus"); ns.state.instanceCategory = sceneId
     local mockCurrent = self:BuildMockSegment(false); local mockOverall = self:BuildMockSegment(true)
     ns.Segments.current = nil; ns.Segments.history = { mockCurrent }; ns.Segments.viewIndex = 1; ns.Segments.overall = mockOverall
-    if ns.Analysis then ns.Analysis:InvalidateCache() end; ns.UI:Layout()
+    if ns.Analysis then ns.Analysis:InvalidateCache() end
+    -- 预览模式：只应用场景尺寸，不改变位置
+    if ns.db.window.rememberSceneSize and ns.db.window.sceneSizes then
+        local s = ns.db.window.sceneSizes[sceneId]
+        if s then ns.UI.frame:SetSize(s.width, s.height) end
+    end
+    ns.UI:Layout()
 end
 
 function Config:BuildMockSegment(isOverall)

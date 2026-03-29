@@ -78,6 +78,37 @@ function Config:BuildLayoutPage()
     y4 = self:Slider(sec4, L["上下分栏比例"], y4, 0.2, 0.8, 0.01, function() return ns.db.split.tbRatio or 0.5 end, function(v) ns.db.split.tbRatio = v; self:RefreshUI() end, true)
     y4 = self:Slider(sec4, L["左右分栏比例"], y4, 0.2, 0.8, 0.01, function() return ns.db.split.lrRatio or 0.5 end, function(v) ns.db.split.lrRatio = v; self:RefreshUI() end, true)
     sec4:SetHeight(math.abs(y4)); self.laySec4 = sec4
+
+    local sec5 = CreateFrame("Frame", nil, inner); sec5:SetWidth(inner:GetWidth()); local y5 = 0
+    y5 = self:H(sec5, L["按场景记忆窗口大小"], y5)
+    y5 = self:Check(sec5, L["按场景记忆窗口大小"], y5,
+        function() return ns.db.window.rememberSceneSize end,
+        function(v)
+            ns.db.window.rememberSceneSize = v
+            if v then
+                local cat = ns.state.instanceCategory or "outdoor"
+                if not ns.db.window.sceneSizes then ns.db.window.sceneSizes = {} end
+                if not ns.db.window.sceneSizes[cat] then
+                    ns.db.window.sceneSizes[cat] = { width = ns.db.window.width, height = ns.db.window.height }
+                end
+            end
+            self:UpdateLayoutVisibility()
+        end)
+    y5 = self:Desc(sec5, y5, L["SCENE_SIZE_DESC"])
+    self._laySec5BaseH = math.abs(y5)
+
+    local sec5_sub = CreateFrame("Frame", nil, sec5); sec5_sub:SetWidth(inner:GetWidth() - 16); sec5_sub:SetPoint("TOPLEFT", sec5, "TOPLEFT", 16, y5); local y5s = 0
+    local anchorOpts = {
+        {l=L["左上"], v="TOPLEFT"}, {l=L["上方"], v="TOP"}, {l=L["右上"], v="TOPRIGHT"},
+        {l=L["左侧"], v="LEFT"}, {l=L["中心"], v="CENTER"}, {l=L["右侧"], v="RIGHT"},
+        {l=L["左下"], v="BOTTOMLEFT"}, {l=L["下方"], v="BOTTOM"}, {l=L["右下"], v="BOTTOMRIGHT"},
+    }
+    y5s = self:Dropdown(sec5_sub, L["缩放锚点"], y5s, anchorOpts,
+        function() return ns.db.window.sceneAnchor or "TOPLEFT" end,
+        function(v) ns.db.window.sceneAnchor = v end)
+    y5s = self:Desc(sec5_sub, y5s, L["SCENE_ANCHOR_DESC"])
+    sec5_sub:SetHeight(math.abs(y5s)); self.laySec5Sub = sec5_sub; self.laySec5 = sec5
+
     self:UpdateLayoutVisibility()
 end
 
@@ -89,7 +120,12 @@ function Config:UpdateLayoutVisibility()
     self.laySec2:SetPoint("TOPLEFT", self.laySec1, "BOTTOMLEFT", 0, -12)
     self.laySec3:SetPoint("TOPLEFT", self.laySec2, "BOTTOMLEFT", 0, -12)
     self.laySec4:SetPoint("TOPLEFT", self.laySec3, "BOTTOMLEFT", 0, -12)
-    local totalH = 28 + 12 + self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + 60
+
+    local sec5BaseH = self._laySec5BaseH or 48
+    if ns.db.window.rememberSceneSize then self.laySec5Sub:Show(); self.laySec5:SetHeight(sec5BaseH + self.laySec5Sub:GetHeight()) else self.laySec5Sub:Hide(); self.laySec5:SetHeight(sec5BaseH) end
+    self.laySec5:SetPoint("TOPLEFT", self.laySec4, "BOTTOMLEFT", 0, -12)
+
+    local totalH = 28 + 12 + self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + self.laySec5:GetHeight() + 60
     inner:SetHeight(totalH); self:UpdatePageScroll("layout")
 end
 

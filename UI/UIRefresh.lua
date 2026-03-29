@@ -139,16 +139,17 @@ function UI:RefreshTitle()
         local seg = ns.Segments and ns.Segments:GetViewSegment()
         if seg and seg._keystoneTime and seg._keystoneTime > 0 then dur = seg._keystoneTime else dur = seg and (seg.duration or 0) or 0 end
     end
-    local tStr = dur > 0 and (" |cffaaaaaa" .. ns:FormatTime(dur) .. "|r") or ""
+    local tStr = dur > 0 and ("|cffaaaaaa" .. ns:FormatTime(dur) .. "|r") or ""
+    if self.titleTime then self.titleTime:SetText(tStr) end
     if ns.MythicPlus and ns.MythicPlus:IsActive() and ns.state.inMythicPlus then
         local info = ns.MythicPlus:GetHeaderInfo()
         if info then
             local levelStr = (info.level and info.level > 0) and string.format("|cff4cb8e8+%d|r ", info.level) or ""
             local nameStr = info.name and ("|cff4cb8e8" .. info.name .. "|r") or ""
-            self.titleText:SetText(dot .. segL .. " " .. levelStr .. nameStr .. tStr); return
+            self.titleText:SetText(dot .. segL .. " " .. levelStr .. nameStr); return
         end
     end
-    self.titleText:SetText(dot .. segL .. tStr)
+    self.titleText:SetText(dot .. segL)
 end
 
 function UI:RefreshHead(h, mode, seg, dur, apiSessionType)
