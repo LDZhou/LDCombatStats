@@ -130,7 +130,8 @@ function ns.CombatTracker:LoadSegmentData(seg)
                 local enemyName = enemy.name or "?"
                 local total = getAmount(enemy.totalAmount)
                 if total > 0 then
-                    local entry = { creatureID = creatureID, name = enemyName, total = total, sources = {} }
+                    local perSec = getAmount(enemy.amountPerSecond)
+                    local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
                     local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
                         sid, Enum.DamageMeterType.EnemyDamageTaken, nil, creatureID)
                     if okSrc and srcData and srcData.combatSpells then
@@ -404,7 +405,8 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                 local enemyName = enemy.name or "?"
                 local total = getAmount(enemy.totalAmount)
                 if total > 0 then
-                    local entry = { creatureID = creatureID, name = enemyName, total = total, sources = {} }
+                    local perSec = getAmount(enemy.amountPerSecond)
+                    local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
                     local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
                         Enum.DamageMeterSessionType.Overall, Enum.DamageMeterType.EnemyDamageTaken,
                         nil, creatureID)

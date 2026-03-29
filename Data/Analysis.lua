@@ -29,7 +29,7 @@ function Analysis:GetSorted(segment, mode)
                 name     = entry.name,
                 class    = "WARRIOR",
                 value    = entry.total,
-                perSec   = 0,
+                perSec   = entry.perSec or 0,
                 percent  = totalValue > 0 and (entry.total / totalValue * 100) or 0,
                 deaths   = 0, interrupts = 0, dispels = 0,
                 _isEnemy = true,
