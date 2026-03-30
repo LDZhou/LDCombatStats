@@ -404,6 +404,7 @@ function UI:BuildResize()
     g:SetScript("OnMouseDown", function() if ns.db.window.locked then return end; self.frame:StartSizing("BOTTOMRIGHT"); self._resizing = true end)
     g:SetScript("OnMouseUp", function()
         if not self._resizing then return end; self._resizing = false; self.frame:StopMovingOrSizing()
+        if self._collapsed then return end
         local w, h = self:ClampSize(self.frame:GetWidth(), self.frame:GetHeight())
         self.frame:SetSize(w, h)  -- 确保 frame 本身也被修正
         ns.db.window.width = w; ns.db.window.height = h

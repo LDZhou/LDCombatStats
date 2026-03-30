@@ -40,6 +40,7 @@ function UI:DoLayout(retryCount)
         if retryCount < 20 then
             C_Timer.After(0.05, function() self:DoLayout(retryCount + 1) end)
         else
+            if self._collapsed then return end
             -- 重试耗尽，强制恢复到默认尺寸
             local dw, dh = self:ClampSize(ns.db.window.width, ns.db.window.height)
             self.frame:SetSize(dw, dh)

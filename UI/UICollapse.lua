@@ -15,6 +15,15 @@ function UI:ToggleCollapse(collapse, skipAnim)
     local targetHeight = collapse and TITLE_H or (self._savedHeight or db.height)
     if collapse then
         self._savedHeight = self.frame:GetHeight(); self._savedAnchor = { self.frame:GetPoint() }
+        if self._savedHeight > TITLE_H then
+            db.height = self._savedHeight
+            db.width  = self.frame:GetWidth()
+            if db.rememberSceneSize then
+                local cat = ns.state.instanceCategory or "outdoor"
+                if not db.sceneSizes then db.sceneSizes = {} end
+                db.sceneSizes[cat] = { width = db.width, height = self._savedHeight }
+            end
+        end
         local left = self.frame:GetLeft(); local top = self.frame:GetTop()
         self.frame:ClearAllPoints(); self.frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
         self.collapseBtn.iconTex:SetTexture(TEX.."btn_expand"); self.collapseBtn.iconTex:SetVertexColor(0.65,0.65,0.65,1)
