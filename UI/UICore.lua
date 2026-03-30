@@ -277,11 +277,11 @@ function UI:BuildTitle()
     rstBtn:SetPoint("RIGHT", cfgBtn, "LEFT", -2, 0); self.rstBtn = rstBtn
 
     self.titleTime = self:FS(b, 10, "OUTLINE")
-    self.titleTime:SetPoint("RIGHT", rstBtn, "LEFT", -4, 0)
-    self.titleTime:SetJustifyH("RIGHT"); self.titleTime:SetTextColor(0.67, 0.67, 0.67)
+    self.titleTime:SetPoint("LEFT", listBtn, "RIGHT", 4, 0)
+    self.titleTime:SetJustifyH("LEFT"); self.titleTime:SetTextColor(0.67, 0.67, 0.67)
     self.titleText:ClearAllPoints()
-    self.titleText:SetPoint("LEFT", listBtn, "RIGHT", 4, 0)
-    self.titleText:SetPoint("RIGHT", self.titleTime, "LEFT", -2, 0)
+    self.titleText:SetPoint("LEFT", self.titleTime, "RIGHT", 4, 0)
+    self.titleText:SetPoint("RIGHT", rstBtn, "LEFT", -4, 0)
 end
 
 function UI:BuildMPlusSummary()
