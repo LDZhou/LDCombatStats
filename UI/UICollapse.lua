@@ -13,7 +13,6 @@ function UI:ToggleCollapse(collapse, skipAnim)
     self._collapsed = collapse
     local db = ns.db.window; local cdb = ns.db.collapse
     local targetHeight = collapse and TITLE_H or (self._savedHeight or db.height)
-    local targetAlpha  = collapse and cdb.alpha or db.alpha
     if collapse then
         self._savedHeight = self.frame:GetHeight(); self._savedAnchor = { self.frame:GetPoint() }
         local left = self.frame:GetLeft(); local top = self.frame:GetTop()
@@ -34,22 +33,21 @@ function UI:ToggleCollapse(collapse, skipAnim)
             self.frame:ClearAllPoints()
             if self._savedAnchor then self.frame:SetPoint(unpack(self._savedAnchor)) end
             self:Layout()
-            if not ns.state.inCombat then C_Timer.After(0.1, function() self:CheckAutoFade(true) end) end
         end
+        self:CheckAutoFade(true)
     end
-    if cdb.enableAnim and not skipAnim then self:StartCollapseAnim(targetHeight, targetAlpha, onAnimComplete)
-    else self.frame:SetHeight(targetHeight); self.frame:SetAlpha(targetAlpha); onAnimComplete() end
+    if cdb.enableAnim and not skipAnim then self:StartCollapseAnim(targetHeight, onAnimComplete)
+    else self.frame:SetHeight(targetHeight); onAnimComplete() end
 end
 
-function UI:StartCollapseAnim(targetHeight, targetAlpha, onComplete)
+function UI:StartCollapseAnim(targetHeight, onComplete)
     if not self.animFrame then self.animFrame = CreateFrame("Frame") end
-    local startHeight = self.frame:GetHeight(); local startAlpha = self.frame:GetAlpha()
+    local startHeight = self.frame:GetHeight()
     local duration = ns.db.collapse.animDuration or 0.5; local elapsed = 0
     self.animFrame:SetScript("OnUpdate", function(f, dt)
         elapsed = elapsed + dt; local progress = math.min(elapsed / duration, 1)
         local ease = math.sin(progress * math.pi / 2)
         self.frame:SetHeight(startHeight + (targetHeight - startHeight) * ease)
-        self.frame:SetAlpha(startAlpha + (targetAlpha - startAlpha) * ease)
         if progress >= 1 then f:SetScript("OnUpdate", nil); if onComplete then onComplete() end end
     end)
 end
@@ -69,7 +67,6 @@ end
 function UI:CheckAutoFade(force)
     local fdb = ns.db and ns.db.fade; if not fdb then return end
     if not self.frame or not self.frame:IsShown() then return end
-    if self._collapsed then if self._faded then self._faded = false; self:ApplyFadeAlpha(false, false) end; return end
     local anyFadeEnabled = fdb.fadeBars or fdb.fadeBody
     if not anyFadeEnabled then if self._faded or force then self._faded = false; self:ApplyFadeAlpha(false, false) end; return end
 

@@ -26,7 +26,6 @@ ns.defaults = {
         autoCollapse    = false,
         neverInInstance = true,
         delay           = 1.5,
-        alpha           = 0.5,
         enableAnim      = true,
         animDuration    = 0.4,
     },

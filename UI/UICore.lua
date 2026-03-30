@@ -223,14 +223,16 @@ function UI:Build()
     fadeHoverFrame:SetScript("OnUpdate", function(frame, elapsed)
         frame._timer = frame._timer + elapsed
         if frame._timer < 0.1 then return end; frame._timer = 0
-        if not self._faded then return end
         if not ns.db or not ns.db.fade then return end
         if not (ns.db.fade.fadeBars or ns.db.fade.fadeBody) then return end
         if not ns.db.fade.unfadeOnHover then return end
         if not self.frame or not self.frame:IsShown() then return end
         local isOver = self.frame:IsMouseOver()
-        if isOver and not self._wasMouseOver then self:ApplyFadeAlpha(false, false)
-        elseif not isOver and self._wasMouseOver then self:CheckAutoFade(true) end
+        if isOver and not self._wasMouseOver then
+            if self._faded then self:ApplyFadeAlpha(false, false) end
+        elseif not isOver and self._wasMouseOver then
+            self:CheckAutoFade(true)
+        end
         self._wasMouseOver = isOver
     end)
     self._fadeHoverFrame = fadeHoverFrame
