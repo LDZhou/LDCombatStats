@@ -16,23 +16,6 @@ local SIDEBAR_W = 110
 function Config:BuildLayoutPage()
     local inner = self.pages["layout"].inner
 
-    -- ★ "我之前的配置去哪了" 按钮
-    local migrBtn = CreateFrame("Button", nil, inner)
-    migrBtn:SetHeight(28); migrBtn:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, 0); migrBtn:SetPoint("TOPRIGHT", inner, "TOPRIGHT", 0, 0)
-    self:FillBg(migrBtn, 0.15, 0.08, 0.02, 0.9); self:CreateBorder(migrBtn, 0.6, 0.35, 0.1, 1)
-    local migrTxt = migrBtn:CreateFontString(nil, "OVERLAY")
-    migrTxt:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE"); migrTxt:SetPoint("CENTER")
-    local loc = GetLocale()
-    if loc == "zhCN" or loc == "zhTW" then
-        migrTxt:SetText("|cffffcc00⚠|r 我之前的配置去哪了？？？|cff888888（新用户请忽略）|r")
-    else
-        migrTxt:SetText("|cffffcc00⚠|r Where did my settings go??? |cff888888(New users: ignore this)|r")
-    end
-    migrTxt:SetTextColor(1, 0.8, 0.3)
-    migrBtn:SetScript("OnEnter", function() migrTxt:SetTextColor(1, 1, 1) end)
-    migrBtn:SetScript("OnLeave", function() migrTxt:SetTextColor(1, 0.8, 0.3) end)
-    migrBtn:SetScript("OnClick", function() ns:ShowMigrationNotice() end)
-    self._layMigrBtn = migrBtn
 
     local sec1 = CreateFrame("Frame", nil, inner); sec1:SetWidth(inner:GetWidth()); local y1 = 0
     y1 = self:H(sec1, L["界面语言"], y1)
@@ -116,7 +99,7 @@ function Config:UpdateLayoutVisibility()
     local inner = self.pages["layout"].inner
     if ns.db.split.showOverall then self.laySec2Sub:Show(); self.laySec2:SetHeight(48 + self.laySec2Sub:GetHeight()) else self.laySec2Sub:Hide(); self.laySec2:SetHeight(48) end
     if ns.db.split.enabled then self.laySec3Sub:Show(); self.laySec3:SetHeight(48 + self.laySec3Sub:GetHeight()) else self.laySec3Sub:Hide(); self.laySec3:SetHeight(48) end
-    self.laySec1:SetPoint("TOPLEFT", self._layMigrBtn, "BOTTOMLEFT", 0, -12)
+    self.laySec1:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, 0)
     self.laySec2:SetPoint("TOPLEFT", self.laySec1, "BOTTOMLEFT", 0, -12)
     self.laySec3:SetPoint("TOPLEFT", self.laySec2, "BOTTOMLEFT", 0, -12)
     self.laySec4:SetPoint("TOPLEFT", self.laySec3, "BOTTOMLEFT", 0, -12)
@@ -125,7 +108,7 @@ function Config:UpdateLayoutVisibility()
     if ns.db.window.rememberSceneSize then self.laySec5Sub:Show(); self.laySec5:SetHeight(sec5BaseH + self.laySec5Sub:GetHeight()) else self.laySec5Sub:Hide(); self.laySec5:SetHeight(sec5BaseH) end
     self.laySec5:SetPoint("TOPLEFT", self.laySec4, "BOTTOMLEFT", 0, -12)
 
-    local totalH = 28 + 12 + self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + self.laySec5:GetHeight() + 60
+    local totalH = self.laySec1:GetHeight() + self.laySec2:GetHeight() + self.laySec3:GetHeight() + self.laySec4:GetHeight() + self.laySec5:GetHeight() + 60
     inner:SetHeight(totalH); self:UpdatePageScroll("layout")
 end
 

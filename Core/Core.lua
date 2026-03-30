@@ -158,23 +158,15 @@ function ns:ShowMigrationNotice()
     local isCN = (loc == "zhCN" or loc == "zhTW")
     local title, body
     if isCN then
-        title = "|cff00ccff[Light Damage]|r 重要更新提示"
-        body = "Light Damage 经历了底层重构，你之前的配置和数据无法自动继承。\n\n"
-            .. "如果你想找回原来的配置，请在|cffff9900关闭游戏后|r运行插件包中附带的迁移脚本：\n\n"
-            .. "|cff00ff00Windows 用户:|r\n"
-            .. "双击运行 FindMyProfile(Windows).bat\n\n"
-            .. "|cff00ff00macOS 用户:|r\n"
-            .. "打开终端 (Terminal)，将 FindMyProfile(MacOS).sh 拖入终端窗口后按回车\n\n"
-            .. "运行后重新启动游戏即可恢复。"
+        title = "|cff00ccff[Light Damage]|r 重要提示"
+        body = "Light Damage 经历了一次底层技术重构，之前的个性化配置无法自动继承，需要您重新设置。\n\n"
+            .. "对此带来的不便深表歉意。\n\n"
+            .. "这是一次性的调整，今后不会再发生。"
     else
-        title = "|cff00ccff[Light Damage]|r Important Update Notice"
-        body = "Light Damage has been rebuilt from the ground up. Your previous settings and data could not be migrated automatically.\n\n"
-            .. "To restore your old configuration, |cffff9900close the game first|r, then run the migration script included in the addon package:\n\n"
-            .. "|cff00ff00Windows:|r\n"
-            .. "Double-click FindMyProfile(Windows).bat\n\n"
-            .. "|cff00ff00macOS:|r\n"
-            .. "Open Terminal, drag FindMyProfile(MacOS).sh into the window, and press Enter\n\n"
-            .. "Relaunch the game after running the script."
+        title = "|cff00ccff[Light Damage]|r Important Notice"
+        body = "Light Damage has undergone a major technical overhaul. Your previous settings could not be carried over and will need to be reconfigured.\n\n"
+            .. "We sincerely apologize for the inconvenience.\n\n"
+            .. "This is a one-time occurrence and will not happen again."
     end
 
     StaticPopupDialogs["LIGHTDMG_MIGRATION_NOTICE"] = {
