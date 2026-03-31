@@ -92,13 +92,18 @@ local function buildDeathRecordFromRecapID(recapID, playerGUID, playerName, play
         end
     end
     local timeSpan = #events >= 2 and (events[#events].time - events[1].time) or 0
+    local deathTimestamp = time()
+    if #events > 0 and events[#events].time then
+        deathTimestamp = math.floor(events[#events].time)
+    end
     return {
-        timestamp = time(), gameTime = GetTime(),
+        timestamp = deathTimestamp, gameTime = GetTime(),
         playerName = ns:ShortName(playerName) or "?", playerGUID = playerGUID,
         playerClass = playerClass, isSelf = (playerGUID == ns.state.playerGUID),
         killingAbility = killingAbi, killerName = killerName, events = events,
         lastHP = 0, maxHP = maxHP, totalDamageTaken = totalDmg,
         totalHealingReceived = totalHeal, timeSpan = timeSpan, _fromRecap = true,
+        _recapID = recapID,
     }
 end
 
@@ -168,8 +173,13 @@ local function processArchivedSessions()
                                     local ovrReplaced = false
                                     for di, existing in ipairs(ovr.deathLog) do
                                         if existing.playerGUID == guid then
-                                            if not existing._fromRecap then ovr.deathLog[di] = deathRecord; ovrReplaced = true
-                                            elseif math.abs((existing.gameTime or 0) - (deathRecord.gameTime or 0)) < 1 then ovrReplaced = true end
+                                            if existing._recapID and deathRecord._recapID and existing._recapID == deathRecord._recapID then
+                                                ovrReplaced = true
+                                            elseif not existing._fromRecap then
+                                                ovr.deathLog[di] = deathRecord; ovrReplaced = true
+                                            elseif not existing._recapID then
+                                                ovr.deathLog[di] = deathRecord; ovrReplaced = true
+                                            end
                                             if ovrReplaced then break end
                                         end
                                     end

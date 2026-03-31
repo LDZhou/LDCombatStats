@@ -176,7 +176,7 @@ function DT:OnUnitDied(guid, name, flags, cleuTimestamp)
     local isSelf = (guid == ns.state.playerGUID)
 
     local deathRecord = {
-        timestamp            = time(),
+        timestamp            = recapEvents[1] and recapEvents[1].timestamp and math.floor(recapEvents[1].timestamp) or time(),
         gameTime             = GetTime(),
         playerName           = ns:ShortName(name),
         playerGUID           = guid,
