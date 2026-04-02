@@ -116,6 +116,13 @@ ns.defaults = {
     mythicPlus = {
         enabled           = true,
         autoSegment       = true,
+        autoCleanTrash    = true,
+        genOverallMPlus   = true,
+        genOverallRaid    = true,
+        genOverallDungeon = true,
+        cleanTrashMPlus   = true,
+        cleanTrashRaid    = true,
+        cleanTrashDungeon = true,
     },
     tracking = {
         mergePlayerPets = true,

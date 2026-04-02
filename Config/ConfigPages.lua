@@ -126,15 +126,77 @@ function Config:BuildDataPage()
     y = self:Check(inner, L["显示玩家服务器"], y, function() return ns.db.display.showRealm end, function(v) ns.db.display.showRealm=v; self:RefreshUI() end)
     y = self:Check(inner, L["在排名中永远显示自己"], y, function() return ns.db.display.alwaysShowSelf end, function(v) ns.db.display.alwaysShowSelf=v; self:RefreshUI() end)
     y = self:Check(inner, L["标题下方显示全程摘要行（仅在副本中生效）"], y, function() return ns.db.mythicPlus.dualDisplay end, function(v) ns.db.mythicPlus.dualDisplay=v; self:RefreshUI() end)
-    y = self:Check(inner, L["离开副本后自动生成副本全程段落"], y, function() return ns.db.mythicPlus.enabled end, function(v) ns.db.mythicPlus.enabled=v end)
-    y = y - 12
-    y = self:Check(inner, L["启用标签简写"], y,
+    self._dataTopY = y
+
+    -- Section: 生成全程段落
+    local secGen = CreateFrame("Frame", nil, inner); secGen:SetWidth(inner:GetWidth()); local yGen = 0
+    yGen = self:Check(secGen, L["离开副本后自动生成副本全程段落"], yGen,
+        function() return ns.db.mythicPlus.enabled end,
+        function(v) ns.db.mythicPlus.enabled=v; self:UpdateDataVisibility() end)
+    local dataGenSub = CreateFrame("Frame", nil, secGen); dataGenSub:SetWidth(inner:GetWidth() - 16)
+    dataGenSub:SetPoint("TOPLEFT", secGen, "TOPLEFT", 16, yGen); local yg = 0
+    yg = self:Desc(dataGenSub, yg, L["全程段落生效场景："])
+    yg = self:Check(dataGenSub, L["大秘境"], yg, function() return ns.db.mythicPlus.genOverallMPlus end, function(v) ns.db.mythicPlus.genOverallMPlus=v end)
+    yg = self:Check(dataGenSub, L["团队副本"], yg, function() return ns.db.mythicPlus.genOverallRaid end, function(v) ns.db.mythicPlus.genOverallRaid=v end)
+    yg = self:Check(dataGenSub, L["其他副本 (含地下堡/战场/竞技场)"], yg, function() return ns.db.mythicPlus.genOverallDungeon end, function(v) ns.db.mythicPlus.genOverallDungeon=v end)
+    dataGenSub:SetHeight(math.abs(yg))
+    self._dataGenSub = dataGenSub; self._dataSecGen = secGen; self._dataSecGenBaseH = math.abs(yGen)
+
+    -- Section: 删除小怪段落
+    local secClean = CreateFrame("Frame", nil, inner); secClean:SetWidth(inner:GetWidth()); local yClean = 0
+    yClean = self:Check(secClean, L["离开副本后自动删除小怪段落"], yClean,
+        function() return ns.db.mythicPlus.autoCleanTrash end,
+        function(v) ns.db.mythicPlus.autoCleanTrash=v; self:UpdateDataVisibility() end)
+    local dataCleanSub = CreateFrame("Frame", nil, secClean); dataCleanSub:SetWidth(inner:GetWidth() - 16)
+    dataCleanSub:SetPoint("TOPLEFT", secClean, "TOPLEFT", 16, yClean); local yc = 0
+    yc = self:Desc(dataCleanSub, yc, L["删除小怪生效场景："])
+    yc = self:Check(dataCleanSub, L["大秘境"], yc, function() return ns.db.mythicPlus.cleanTrashMPlus end, function(v) ns.db.mythicPlus.cleanTrashMPlus=v end)
+    yc = self:Check(dataCleanSub, L["团队副本"], yc, function() return ns.db.mythicPlus.cleanTrashRaid end, function(v) ns.db.mythicPlus.cleanTrashRaid=v end)
+    yc = self:Check(dataCleanSub, L["其他副本 (含地下堡/战场/竞技场)"], yc, function() return ns.db.mythicPlus.cleanTrashDungeon end, function(v) ns.db.mythicPlus.cleanTrashDungeon=v end)
+    dataCleanSub:SetHeight(math.abs(yc))
+    self._dataCleanSub = dataCleanSub; self._dataSecClean = secClean; self._dataSecCleanBaseH = math.abs(yClean)
+
+    -- Section: 剩余选项
+    local secRest = CreateFrame("Frame", nil, inner); secRest:SetWidth(inner:GetWidth()); local yRest = 0
+    yRest = yRest - 12
+    yRest = self:Check(secRest, L["启用标签简写"], yRest,
         function() return ns.db.display.useShortTabs end,
         function(v) ns.db.display.useShortTabs = v; if ns.UI then ns.UI:LayoutTabs(); ns.UI:Refresh() end end)
-    y = self:Desc(inner, y, L["标签简写预览"])
-    inner:SetHeight(math.abs(y) + 20)
+    yRest = self:Desc(secRest, yRest, L["标签简写预览"])
+    secRest:SetHeight(math.abs(yRest))
+    self._dataSecRest = secRest
+
+    self:UpdateDataVisibility()
 end
 
+function Config:UpdateDataVisibility()
+    if not self._dataSecGen then return end
+    local inner = self.pages["data"].inner; if not inner then return end
+
+    if ns.db.mythicPlus.enabled then
+        self._dataGenSub:Show()
+        self._dataSecGen:SetHeight(self._dataSecGenBaseH + self._dataGenSub:GetHeight())
+    else
+        self._dataGenSub:Hide()
+        self._dataSecGen:SetHeight(self._dataSecGenBaseH)
+    end
+
+    if ns.db.mythicPlus.autoCleanTrash then
+        self._dataCleanSub:Show()
+        self._dataSecClean:SetHeight(self._dataSecCleanBaseH + self._dataCleanSub:GetHeight())
+    else
+        self._dataCleanSub:Hide()
+        self._dataSecClean:SetHeight(self._dataSecCleanBaseH)
+    end
+
+    self._dataSecGen:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, self._dataTopY)
+    self._dataSecClean:SetPoint("TOPLEFT", self._dataSecGen, "BOTTOMLEFT", 0, 0)
+    self._dataSecRest:SetPoint("TOPLEFT", self._dataSecClean, "BOTTOMLEFT", 0, 0)
+
+    local totalH = math.abs(self._dataTopY) + self._dataSecGen:GetHeight() + self._dataSecClean:GetHeight() + self._dataSecRest:GetHeight() + 20
+    inner:SetHeight(totalH)
+    self:UpdatePageScroll("data")
+end
 -- ============================================================
 -- Look 页
 -- ============================================================

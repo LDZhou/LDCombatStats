@@ -7,6 +7,25 @@
 local addonName, ns = ...
 local L = ns.L
 
+local function getInstanceScene(mythicLevel, instanceType)
+    if mythicLevel and mythicLevel > 0 then return "mplus" end
+    if instanceType == "raid" then return "raid" end
+    return "dungeon"
+end
+
+local function shouldGenOverall(scene)
+    if not ns.db.mythicPlus.enabled then return false end
+    if scene == "mplus"   then return ns.db.mythicPlus.genOverallMPlus end
+    if scene == "raid"    then return ns.db.mythicPlus.genOverallRaid end
+    return ns.db.mythicPlus.genOverallDungeon
+end
+
+local function shouldCleanTrash(scene)
+    if not ns.db.mythicPlus.autoCleanTrash then return false end
+    if scene == "mplus"   then return ns.db.mythicPlus.cleanTrashMPlus end
+    if scene == "raid"    then return ns.db.mythicPlus.cleanTrashRaid end
+    return ns.db.mythicPlus.cleanTrashDungeon
+end
 -- ============================================================
 -- 智能裁剪历史记录
 -- ============================================================
@@ -17,14 +36,23 @@ function ns.CombatTracker:SmartTrimHistory()
     
     while #segs.history > maxSeg do
         local removed = false
+        -- 优先删最旧的小怪段落
         for j = #segs.history, 1, -1 do
             local s = segs.history[j]
             if not s._isBoss and not s._isMerged then
-                table.remove(segs.history, j)
-                removed = true
-                break
+                table.remove(segs.history, j); removed = true; break
             end
         end
+        -- 其次删最旧的Boss段落（保留全程合并段）
+        if not removed then
+            for j = #segs.history, 1, -1 do
+                local s = segs.history[j]
+                if not s._isMerged then
+                    table.remove(segs.history, j); removed = true; break
+                end
+            end
+        end
+        -- 兜底：删最旧的任何段落（确保永远不会卡住）
         if not removed then
             table.remove(segs.history, #segs.history)
         end
@@ -41,6 +69,10 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
 
     mythicLevel = mythicLevel or 0
     local isRaid = (CT._currentInstanceType == "raid")
+
+    local scene = getInstanceScene(mythicLevel, CT._currentInstanceType)
+    local doGenOverall = shouldGenOverall(scene)
+    local doCleanTrash = shouldCleanTrash(scene)
 
     local instSegs = {}
     for i, seg in ipairs(segs.history) do
@@ -89,13 +121,15 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
             cloneOverallToMerged(merged)
 
             local indicesToRemove, bossCount = {}, 0
-            for _, entry in ipairs(instSegs) do
-                if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+            if doCleanTrash then
+                for _, entry in ipairs(instSegs) do
+                    if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+                end
+                table.sort(indicesToRemove, function(a, b) return a > b end)
+                for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end
             end
-            table.sort(indicesToRemove, function(a, b) return a > b end)
-            for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end
 
-            if merged.totalDamage > 0 or merged.totalHealing > 0 then table.insert(segs.history, 1, merged); segs.viewIndex = 1 end
+            if doGenOverall and (merged.totalDamage > 0 or merged.totalHealing > 0) then table.insert(segs.history, 1, merged); segs.viewIndex = 1 end
             CT:SmartTrimHistory()
             CT:ResetBaselineToCurrentCount()
             if ns.Segments then
@@ -184,13 +218,15 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
 
     -- 收尾：删掉小怪，保留 Boss
     local indicesToRemove, bossCount = {}, 0
-    for _, entry in ipairs(instSegs) do
-        if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+    if doCleanTrash then
+        for _, entry in ipairs(instSegs) do
+            if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+        end
+        table.sort(indicesToRemove, function(a, b) return a > b end)
+        for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end
     end
-    table.sort(indicesToRemove, function(a, b) return a > b end)
-    for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end
 
-    if merged.totalDamage > 0 or merged.totalHealing > 0 then table.insert(segs.history, 1, merged); segs.viewIndex = 1 end
+    if doGenOverall and (merged.totalDamage > 0 or merged.totalHealing > 0) then table.insert(segs.history, 1, merged); segs.viewIndex = 1 end
     CT:SmartTrimHistory()
     CT:ResetBaselineToCurrentCount()
 
