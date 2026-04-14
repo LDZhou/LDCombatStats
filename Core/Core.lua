@@ -156,36 +156,7 @@ ns.state = {
     playerClass      = nil,
 }
 
--- ============================================================
--- 迁移提示弹窗（设置页按钮 + 首次登录均调用此函数）
--- ============================================================
-function ns:ShowMigrationNotice()
-    local loc = GetLocale()
-    local isCN = (loc == "zhCN" or loc == "zhTW")
-    local title, body
-    if isCN then
-        title = "|cff00ccff[Light Damage]|r 重要提示"
-        body = "Light Damage 经历了一次底层技术重构，之前的个性化配置无法自动继承，需要您重新设置。\n\n"
-            .. "对此带来的不便深表歉意。\n\n"
-            .. "这是一次性的调整，今后不会再发生。"
-    else
-        title = "|cff00ccff[Light Damage]|r Important Notice"
-        body = "Light Damage has undergone a major technical overhaul. Your previous settings could not be carried over and will need to be reconfigured.\n\n"
-            .. "We sincerely apologize for the inconvenience.\n\n"
-            .. "This is a one-time occurrence and will not happen again."
-    end
 
-    StaticPopupDialogs["LIGHTDMG_MIGRATION_NOTICE"] = {
-        text = title .. "\n\n" .. body,
-        button1 = isCN and "我知道了" or "Got it",
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        preferredIndex = 3,
-        wide = true,
-    }
-    StaticPopup_Show("LIGHTDMG_MIGRATION_NOTICE")
-end
 
 -- ============================================================
 -- 初始化
@@ -339,12 +310,6 @@ function Core:OnInitialize()
                 pcall(setter, cvar, "0")
             end
         end)
-
-        -- ★ 首次更新提示（仅显示一次）
-        if not LightDamageDB._migrationNoticeShown then
-            LightDamageDB._migrationNoticeShown = true
-            C_Timer.After(5, function() ns:ShowMigrationNotice() end)
-        end
 
         -- 注册事件
         local events = {
