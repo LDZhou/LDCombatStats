@@ -54,10 +54,20 @@ function ns.CombatTracker:LoadSegmentData(seg)
                     if checkSecret(src.totalAmount) then seg._dataLoaded = false; return end
                     local guid, creatureID, total = src.sourceGUID, src.sourceCreatureID, src.totalAmount or 0
                     if guid and total > 0 then
-                        local isPet = (creatureID ~= nil and creatureID > 0)
+                        local hasValidClass = src.classFilename and src.classFilename ~= ""
+                        local isPet = (creatureID ~= nil and creatureID > 0) and not hasValidClass
                         local pd = segs:GetPlayer(seg, guid, isPet and nil or src.name, nil)
                         if pd then
-                            if not isPet then pd.class = src.classFilename or pd.class; local aps = getAmount(src.amountPerSecond); if aps > 0 then pd[field.."PerSec"] = aps end end
+                            if not isPet then 
+                                pd.class = src.classFilename or pd.class;
+                                if src.specIconID and src.specIconID > 0 then  -- ★ 新增
+                                    pd.specIconID = src.specIconID
+                                end 
+                                local aps = getAmount(src.amountPerSecond); 
+                                if aps > 0 then 
+                                    pd[field.."PerSec"] = aps 
+                                end 
+                            end
                             pd[field] = (pd[field] or 0) + total
                             if isPet then
                                 pd.pets = pd.pets or {}
@@ -138,11 +148,13 @@ function ns.CombatTracker:LoadSegmentData(seg)
                         for _, sp in ipairs(srcData.combatSpells) do
                             local details = sp.combatSpellDetails
                             if details then
-                                local playerName = details.unitName
-                                local playerClass = details.unitClassFilename or "WARRIOR"
+                                local pnOk, playerName = pcall(function() return details.unitName end)
+                                local pcOk, playerClass = pcall(function() return details.unitClassFilename end)
+                                if not pnOk then playerName = nil end
+                                if not pcOk or not playerClass or playerClass == "" then playerClass = "NPC" end
                                 local amt = getAmount(details.amount)
                                 if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                if playerName and amt > 0 then
+                                if playerName and type(playerName) == "string" and amt > 0 then
                                     local found = false
                                     for _, s in ipairs(entry.sources) do
                                         if s.name == playerName then s.amount = s.amount + amt; found = true; break end
@@ -170,10 +182,16 @@ function ns.CombatTracker:LoadSegmentData(seg)
             for _, src in ipairs(dmSession.combatSources) do
                 local guid, creatureID, total = src.sourceGUID, src.sourceCreatureID, getAmount(src.totalAmount)
                 if guid and total > 0 then
-                    local isPet = (creatureID ~= nil and creatureID > 0)
+                    local hasValidClass = src.classFilename and src.classFilename ~= ""
+                    local isPet = (creatureID ~= nil and creatureID > 0) and not hasValidClass
                     local pd = segs:GetPlayer(seg, guid, isPet and nil or src.name, nil)
                     if pd then
-                        if not isPet then pd.class = src.classFilename or pd.class end
+                        if not isPet then 
+                            pd.class = src.classFilename or pd.class 
+                            if src.specIconID and src.specIconID > 0 then  -- ★ 新增
+                                pd.specIconID = src.specIconID
+                            end
+                        end
                         pd[field] = (pd[field] or 0) + total
                         local ok3, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID, sid, dmType, guid, creatureID)
                         if ok3 and srcData and srcData.combatSpells then
@@ -231,7 +249,16 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
     end
 
     local function getOrCreatePlayer(guid, name)
-        if not newPlayers[guid] then local _, classEng = GetPlayerInfoByGUID(guid); newPlayers[guid] = segs:NewPlayerData(guid, name, classEng or "WARRIOR") end
+        if not newPlayers[guid] then
+            local classEng
+            if ns:IsNPCGUID(guid) then
+                classEng = "NPC"
+            else
+                local ok, _, ce = pcall(GetPlayerInfoByGUID, guid)
+                classEng = (ok and ce) or "WARRIOR"
+            end
+            newPlayers[guid] = segs:NewPlayerData(guid, name, classEng)
+        end
         if name and not (issecretvalue and issecretvalue(name)) and name ~= "" then newPlayers[guid].name = ns:ShortName(name) end
         return newPlayers[guid]
     end
@@ -247,9 +274,15 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                     for _, src in ipairs(dmSession.combatSources) do
                         local guid, creatureID, total = src.sourceGUID, src.sourceCreatureID, getAmount(src.totalAmount)
                         if guid and total > 0 then
-                            local isPet = (creatureID ~= nil and creatureID > 0)
+                            local hasValidClass = src.classFilename and src.classFilename ~= ""
+                            local isPet = (creatureID ~= nil and creatureID > 0) and not hasValidClass
                             local pd = getOrCreatePlayer(guid, isPet and nil or src.name)
-                            if not isPet then pd.class = src.classFilename or pd.class end
+                            if not isPet then 
+                                pd.class = src.classFilename or pd.class 
+                                if src.specIconID and src.specIconID > 0 then
+                                    pd.specIconID = src.specIconID
+                                end
+                            end
                             pd[field] = (pd[field] or 0) + total
                             if field == "damage" then newTotalDamage = newTotalDamage + total
                             elseif field == "healing" then newTotalHealing = newTotalHealing + total
@@ -328,16 +361,20 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                             if okSrc and srcData and srcData.combatSpells then
                                 for _, sp in ipairs(srcData.combatSpells) do
                                     local details = sp.combatSpellDetails
-                                    if details and details.unitName then
+                                    if details then
+                                        local pnOk, pName = pcall(function() return details.unitName end)
+                                        local pcOk, pClass = pcall(function() return details.unitClassFilename end)
+                                        if not pnOk then pName = nil end
+                                        if not pcOk or not pClass or pClass == "" then pClass = "NPC" end
                                         local amt = getAmount(details.amount)
                                         if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                        if amt > 0 then
+                                        if pName and type(pName) == "string" and amt > 0 then
                                             local found = false
                                             for _, s in ipairs(edtMap[key].sources) do
-                                                if s.name == details.unitName then s.amount = s.amount + amt; found = true; break end
+                                                if s.name == pName then s.amount = s.amount + amt; found = true; break end
                                             end
                                             if not found then
-                                                table.insert(edtMap[key].sources, { name = details.unitName, class = details.unitClassFilename or "WARRIOR", amount = amt })
+                                                table.insert(edtMap[key].sources, { name = pName, class = pClass, amount = amt })
                                             end
                                         end
                                     end
@@ -355,7 +392,10 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                 for _, src in ipairs(dmSession.combatSources) do
                     local guid, creatureID, total = src.sourceGUID, src.sourceCreatureID, getAmount(src.totalAmount)
                     if guid and total > 0 and not (creatureID ~= nil and creatureID > 0) then
-                        local pd = getOrCreatePlayer(guid, src.name); pd.class = src.classFilename or pd.class; pd.deaths = (pd.deaths or 0) + total
+                        local pd = getOrCreatePlayer(guid, src.name)
+                        pd.class = src.classFilename or pd.class
+                        if src.specIconID and src.specIconID > 0 then pd.specIconID = src.specIconID end
+                        pd.deaths = (pd.deaths or 0) + total
                     end
                 end
             end
@@ -367,9 +407,13 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                     for _, src in ipairs(dmSession.combatSources) do
                         local guid, creatureID, total = src.sourceGUID, src.sourceCreatureID, getAmount(src.totalAmount)
                         if guid and total > 0 then
-                            local isPet = (creatureID ~= nil and creatureID > 0)
+                            local hasValidClass = src.classFilename and src.classFilename ~= ""
+                            local isPet = (creatureID ~= nil and creatureID > 0) and not hasValidClass
                             local pd = getOrCreatePlayer(guid, isPet and nil or src.name)
-                            if not isPet then pd.class = src.classFilename or pd.class end
+                            if not isPet then 
+                                pd.class = src.classFilename or pd.class
+                                if src.specIconID and src.specIconID > 0 then pd.specIconID = src.specIconID end
+                            end
                             pd[field] = (pd[field] or 0) + total
                             local ok3, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID, sid, dmType, guid, creatureID)
                             if ok3 and srcData and srcData.combatSpells then
@@ -414,11 +458,13 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                         for _, sp in ipairs(srcData.combatSpells) do
                             local details = sp.combatSpellDetails
                             if details then
-                                local playerName = details.unitName
-                                local playerClass = details.unitClassFilename or "WARRIOR"
+                                local pnOk, playerName = pcall(function() return details.unitName end)
+                                local pcOk, playerClass = pcall(function() return details.unitClassFilename end)
+                                if not pnOk then playerName = nil end
+                                if not pcOk or not playerClass or playerClass == "" then playerClass = "NPC" end
                                 local amt = getAmount(details.amount)
                                 if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                if playerName and amt > 0 then
+                                if playerName and type(playerName) == "string" and amt > 0 then
                                     local found = false
                                     for _, s in ipairs(entry.sources) do
                                         if s.name == playerName then s.amount = s.amount + amt; found = true; break end

@@ -426,7 +426,7 @@ function ns:LeaveCombat()
 end
 
 function ns:OnEncounterStart(encounterID, name, difficultyID, groupSize)
-    LoggingCombat(true)
+    -- LoggingCombat(true)
     if ns.Segments then
         ns.Segments:OnEncounterStart(encounterID, name, difficultyID, groupSize)
     end

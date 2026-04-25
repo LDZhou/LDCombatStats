@@ -17,6 +17,15 @@ ns.CLASS_COLORS = {
     EVOKER      = {0.20, 0.58, 0.50},
 }
 
+-- NPC GUID 判断（用于区分玩家与生物，避免 NPC 被误染战士色）
+function ns:IsNPCGUID(guid)
+    if not guid then return false end
+    return guid:match("^Creature%-") ~= nil
+        or guid:match("^Vehicle%-") ~= nil
+        or guid:match("^Pet%-") ~= nil
+        or guid:match("^GameObject%-") ~= nil
+end
+
 function ns:GetClassColor(class)
     return ns.CLASS_COLORS[class] or {0.5, 0.5, 0.5}
 end

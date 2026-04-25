@@ -155,8 +155,12 @@ function DT:OnUnitDied(guid, name, flags, cleuTimestamp)
 
     local class = buf.class
     if not class then
-        local _, classEng = GetPlayerInfoByGUID(guid)
-        class = classEng
+        if ns:IsNPCGUID(guid) then
+            class = "NPC"
+        else
+            local ok, _, classEng = pcall(GetPlayerInfoByGUID, guid)
+            class = (ok and classEng) or nil
+        end
     end
 
     local totalDmg  = 0

@@ -139,6 +139,8 @@ local function processArchivedSessions()
                 seg._instanceDisplayName = CT._currentInstanceName or nil
                 seg._sessionIdx = i; seg._sessionID = sid; seg._dataLoaded = false
 
+                ns.CombatTracker:LoadSegmentData(seg)
+
                 local ok2, deathSession = pcall(C_DamageMeter.GetCombatSessionFromID, sid, Enum.DamageMeterType.Deaths)
                 if ok2 and deathSession and deathSession.combatSources then
                     for _, src in ipairs(deathSession.combatSources) do
@@ -147,7 +149,14 @@ local function processArchivedSessions()
                         local recapID = getAmount(src.deathRecapID)
                         if guid and (deaths > 0 or recapID > 0) and recapID > 0 then
                             local class = src.classFilename
-                            if not class then local _, classEng = GetPlayerInfoByGUID(guid); class = classEng or "WARRIOR" end
+                            if not class then
+                                if ns:IsNPCGUID(guid) then
+                                    class = "NPC"
+                                else
+                                    local ok, _, ce = pcall(GetPlayerInfoByGUID, guid)
+                                    class = (ok and ce) or "WARRIOR"
+                                end
+                            end
                             local deathRecord = buildDeathRecordFromRecapID(recapID, guid, src.name, class)
                             if deathRecord then
                                 local replaced = false
@@ -214,9 +223,32 @@ end
 -- ============================================================
 local waitTicker, waitAttempts = nil, 0
 
-local function waitAndProcessArchived()
+local function waitAndProcessArchived(fastPath)
     if waitTicker then return end
     waitAttempts = 0
+    -- fastPath: 由 DAMAGE_METER_COMBAT_SESSION_UPDATED 事件直接触发，跳过等待
+    if fastPath then
+        local function quickCheck()
+            local sessions = C_DamageMeter.GetAvailableCombatSessions()
+            local count = sessions and #sessions or 0
+            for i = CT._lastProcessedCount + 1, count do
+                local s = sessions[i]
+                if isSessionStillSecret(s.sessionID) then return false end
+                if (s.durationSeconds or 0) == 0 then return false end
+            end
+            return true
+        end
+        if quickCheck() then
+            processArchivedSessions()
+            if CT._pendingMergeArgs then
+                local args = CT._pendingMergeArgs; CT._pendingMergeArgs = nil
+                CT:MergeAndCleanInstance(args.tag, args.lvl, args.mapName, args.instName)
+            end
+            if ns.Segments then ns.Segments._locked = false end
+            if ns.UI then C_Timer.After(0, function() ns.UI:Layout() end) end
+            return
+        end
+    end
     local function anyUnprocessedStillSecret()
         local sessions = C_DamageMeter.GetAvailableCombatSessions()
         local count    = sessions and #sessions or 0
@@ -267,7 +299,7 @@ local function waitAndProcessArchived()
         end)
     end
     if not anyUnprocessedStillSecret() then doAfterProcess(); return end
-    waitTicker = C_Timer.NewTicker(0.5, function()
+    waitTicker = C_Timer.NewTicker(0.2, function()
         waitAttempts = waitAttempts + 1
         if InCombatLockdown() then return end
         if waitAttempts >= 10 then if waitTicker then waitTicker:Cancel(); waitTicker = nil end; doAfterProcess(); return end
@@ -310,7 +342,7 @@ local function syncCombatState()
         if ns.state.inCombat then
             if CT._currentEncounterID then return end
             ns:LeaveCombat()
-            C_Timer.After(0.5, waitAndProcessArchived)
+            C_Timer.After(0.1, waitAndProcessArchived)
         end
     end
 end
@@ -365,12 +397,20 @@ function CT:RegisterEvents()
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:RegisterEvent("CHALLENGE_MODE_START"); f:RegisterEvent("CHALLENGE_MODE_COMPLETED"); f:RegisterEvent("CHALLENGE_MODE_RESET")
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
+    f:RegisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED")
 
     f:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_LEAVING_WORLD" then
             if ns.state.isInInstance then
                 local officialDur = C_DamageMeter.GetSessionDurationSeconds(Enum.DamageMeterSessionType.Overall)
                 if officialDur and officialDur > 0 then CT._overallDurationSnapshot = officialDur end
+            end
+            return
+        end
+        if event == "DAMAGE_METER_COMBAT_SESSION_UPDATED" then
+            -- 仅在脱战时处理（战斗中数据变化是正常的，不需要归档）
+            if not ns.state.inCombat and not isGroupInCombat() then
+                C_Timer.After(0, function() waitAndProcessArchived(true) end)
             end
             return
         end

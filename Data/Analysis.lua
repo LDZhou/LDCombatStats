@@ -68,6 +68,7 @@ function Analysis:GetSorted(segment, mode)
                 name        = pd.name,
                 class       = pd.class,
                 specID      = pd.specID,
+                specIconID  = pd.specIconID, 
                 ilvl        = pd.ilvl,
                 score       = pd.score,
                 value       = value,

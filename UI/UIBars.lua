@@ -119,6 +119,7 @@ function UI:FillBars(bars, listObj, data, dur, mode)
                 end
                 local icon = nil
                 if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
+                if not icon and d.specIconID and d.specIconID > 0 then icon = d.specIconID end  -- ★ 新增
                 if d._isEnemy then icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" end
                 if not icon and bar._classStr then icon = CLASS_ICONS[bar._classStr] end
                 if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end

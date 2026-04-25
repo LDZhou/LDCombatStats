@@ -52,8 +52,9 @@ function Segments:NewPlayerData(guid, name, class)
     return {
         guid   = guid,
         name   = ns:ShortName(name) or "?",
-        class  = class or "WARRIOR",
+        class  = class or (ns:IsNPCGUID(guid) and "NPC" or "WARRIOR"),
         specID = specID,              -- ★ 新增
+        specIconID = nil, 
         ilvl   = cache.ilvl or 0,     -- ★ 新增
         score  = cache.score or 0,    -- ★ 新增
 
@@ -241,13 +242,6 @@ function Segments:GetViewSegment()
         seg = self.current or self.history[1] or self.overall
     end
 
-    if seg and seg._sessionID and not seg._dataLoaded then
-        if ns.CombatTracker then
-            ns.CombatTracker:LoadSegmentData(seg)
-            -- 不在这里设置 _dataLoaded，让 LoadSegmentData 自己决定
-        end
-    end
-
     return seg
 end
 
@@ -260,13 +254,11 @@ function Segments:GetCurrentSegment()
 end
 
 function Segments:SetViewSegment(index)
-    if self._locked then return end  -- 战斗中禁止切换
     self.viewIndex = index
     if ns.UI then ns.UI:Refresh() end
 end
 
 function Segments:CycleSegment(direction)
-    if self._locked then return end  -- 战斗中完全禁用左右翻，用列表代替
     local maxIdx = #self.history
     if not self.viewIndex then
         self.viewIndex = direction > 0 and 0 or (maxIdx > 0 and 1 or 0)
@@ -311,8 +303,13 @@ function Segments:GetPlayer(seg, guid, name, flags)
 
     local pd = seg.players[guid]
     if not pd then
-        local _, classEng = GetPlayerInfoByGUID(guid)
-        classEng = classEng or "WARRIOR"
+        local classEng
+        if ns:IsNPCGUID(guid) then
+            classEng = "NPC"
+        else
+            local ok, _, ce = pcall(GetPlayerInfoByGUID, guid)
+            classEng = (ok and ce) or "WARRIOR"
+        end
         pd = self:NewPlayerData(guid, name, classEng)
         seg.players[guid] = pd
     end
@@ -435,7 +432,6 @@ function Segments:GetHistoryList()
 end
 
 function Segments:SetViewByKey(key, index)
-    if self._locked and key == "history" then return end
     if key == "current" then self.viewIndex = nil
     elseif key == "overall" then self.viewIndex = 0
     elseif key == "history" then self.viewIndex = index end

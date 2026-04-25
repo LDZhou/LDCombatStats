@@ -276,10 +276,9 @@ end
 function HL:SetupItem(item, data, curKey, curIdx, isLocked)
     item.data = data; item.text:SetText(data.label)
     local isHistory = data.key == "history"
-    local disabled = isLocked and isHistory
     local isActive = (data.key == curKey) and (data.key == "overall" or data.key == "current" or data.index == curIdx)
 
-    -- ★ 12.0 规范：仅在历史记录段展示删除按钮，并在战斗锁定 (isLocked) 时隐藏，避免并发数据错乱
+    -- 战斗中允许查看但禁止删除（防止数据竞态）
     if isHistory and not isLocked then
         item.delBtn:Show()
     else
@@ -288,12 +287,10 @@ function HL:SetupItem(item, data, curKey, curIdx, isLocked)
 
     if isActive then
         item.activeBg:Show(); item.text:SetTextColor(1, 1, 1, 1)
-    elseif disabled then
-        item.activeBg:Hide(); item.text:SetTextColor(0.35, 0.35, 0.35, 1)
     else
         item.activeBg:Hide(); item.text:SetTextColor(unpack(T.text))
     end
-    item.frame:SetEnabled(not disabled)
+    item.frame:SetEnabled(true)
 end
 
 function HL:MakeItem(parent)

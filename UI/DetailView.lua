@@ -988,10 +988,13 @@ function DV:ShowEnemyDamageTakenDetail(enemyName, sources, totalDmg)
         r.fill:SetMinMaxValues(0, maxV)
         r.fill:SetValue(src.amount)
 
-        local cc = ns:GetClassColor(src.class) or {0.5, 0.5, 0.5}
+        local classKey = type(src.class) == "string" and src.class or "NPC"
+        local ok, cc = pcall(ns.GetClassColor, ns, classKey)
+        if not ok or not cc then cc = {0.5, 0.5, 0.5} end
         r.fill:SetStatusBarColor(cc[1], cc[2], cc[3], alpha)
 
-        r.name:SetText(ns:DisplayName(src.name))
+        local nameOk, nameStr = pcall(ns.DisplayName, ns, src.name)
+        r.name:SetText((nameOk and nameStr) or tostring(src.name or "?"))
         r.name:SetTextColor(cc[1], cc[2], cc[3])
 
         local pct = totalDmg > 0 and (src.amount / totalDmg * 100) or 0
