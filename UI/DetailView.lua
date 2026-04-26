@@ -489,7 +489,8 @@ function DV:RenderSpellList(name, class, mode, spells, dur, titleSuffix, apiMaxA
         elseif isCount then
             valStr = string.format(L["|cffffff00%d次|r"], sp.value)
         elseif dur and dur > 0 and ns.MODE_UNITS[mode] then
-            valStr = string.format("%s(%s)", ns:FormatNumber(sp.value / dur), ns:FormatNumber(sp.value))
+            -- ★ 顺序与主界面数据条一致：总量 (每秒)
+            valStr = string.format("%s (%s)", ns:FormatNumber(sp.value), ns:FormatNumber(sp.value / dur))
         else
             valStr = ns:FormatNumber(sp.value)
         end

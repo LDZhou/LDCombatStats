@@ -137,12 +137,14 @@ function ns.CombatTracker:LoadSegmentData(seg)
         if okET and etSession and etSession.combatSources then
             for _, enemy in ipairs(etSession.combatSources) do
                 local creatureID = enemy.sourceCreatureID
-                -- 过滤 secret name
+                -- ★ 修复：去掉 issecretvalue 拦截，secret string 也是 string，直接给 UI 能正常渲染
                 local enemyName = "?"
-                if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                local hasName = false
+                if type(enemy.name) == "string" then
                     enemyName = enemy.name
+                    hasName = true
                 end
-                if creatureID or enemyName ~= "?" then
+                if creatureID or hasName then
                     local total = getAmount(enemy.totalAmount)
                     if total > 0 then
                         local perSec = getAmount(enemy.amountPerSecond)
@@ -378,9 +380,9 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                             local total = getAmount(enemy.totalAmount)
                             if total > 0 then
                                 if not edtMap[key] then
-                                    -- 存 name 时也过滤 secret
+                                    -- ★ 修复：去掉 issecretvalue 拦截
                                     local safeName = "?"
-                                    if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                                    if type(enemy.name) == "string" then
                                         safeName = enemy.name
                                     end
                                     edtMap[key] = { creatureID = enemy.sourceCreatureID, name = safeName, total = 0, sources = {} }
@@ -480,11 +482,14 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
         if okET and etSession and etSession.combatSources then
             for _, enemy in ipairs(etSession.combatSources) do
                 local creatureID = enemy.sourceCreatureID
+                -- ★ 修复：去掉 issecretvalue 拦截
                 local enemyName = "?"
-                if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                local hasName = false
+                if type(enemy.name) == "string" then
                     enemyName = enemy.name
+                    hasName = true
                 end
-                if creatureID or enemyName ~= "?" then
+                if creatureID or hasName then
                     local total = getAmount(enemy.totalAmount)
                     if total > 0 then
                         local perSec = getAmount(enemy.amountPerSecond)
