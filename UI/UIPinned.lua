@@ -104,9 +104,13 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     -- name:secret value 时跳过
     local nameRaw = src.name
     local nameStr = ""
-    if nameRaw and type(nameRaw) == "string"
-       and not (issecretvalue and issecretvalue(nameRaw)) then
+    local isSecret = issecretvalue and issecretvalue(nameRaw)
+
+    if isSecret then
         nameStr = nameRaw
+    elseif nameRaw then
+        local ok, str = pcall(tostring, nameRaw)
+        if ok and str then nameStr = str end
     end
     pinnedBar.name:SetText(ns:DisplayName(nameStr))
 

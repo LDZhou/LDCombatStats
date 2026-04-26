@@ -183,9 +183,14 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
             -- name:secret value 时跳过,避免崩溃
             local nameRaw = src.name
             local nameStr = ""
-            if nameRaw and type(nameRaw) == "string" 
-               and not (issecretvalue and issecretvalue(nameRaw)) then
+            local isSecret = issecretvalue and issecretvalue(nameRaw)
+
+            if isSecret then
+                -- 【核心关键】：加密字符串可以直接给暴雪UI渲染，但绝对不能作任何 ~= 或 == 的比较！
                 nameStr = nameRaw
+            elseif nameRaw then
+                local ok, str = pcall(tostring, nameRaw)
+                if ok and str then nameStr = str end
             end
             bar.name:SetText(ns:DisplayName(nameStr)); bar._nameStr = nameStr
 
