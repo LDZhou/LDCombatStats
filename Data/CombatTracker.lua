@@ -498,7 +498,7 @@ function CT:RegisterEvents()
                 if isSameInstance then
                     C_Timer.After(1.5, function()
                         if ns.Segments then
-                            if ns.Segments.history then for _, seg in ipairs(ns.Segments.history) do if seg._sessionID and seg._instanceTag == CT._currentInstanceTag then seg._dataLoaded = false; CT:LoadSegmentData(seg) end end end
+                            if ns.Segments.history then for _, s in ipairs(ns.Segments.history) do if s._sessionID and not s._dataLoaded then CT:LoadSegmentData(s) end end end
                             ns.Segments._preReloadOverallData = nil
                             local sess = C_DamageMeter.GetAvailableCombatSessions(); CT:RebuildOverall(sess, sess and #sess or 0)
                             if ns.UI and ns.UI:IsVisible() then ns.UI:Layout() end

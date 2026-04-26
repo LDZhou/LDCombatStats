@@ -233,7 +233,7 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
             if C_DamageMeter.ResetAllCombatSessions then
                 if ns.Segments.history then
                     for _, s in ipairs(ns.Segments.history) do
-                        if s._sessionID and not s._dataLoaded and (s._isBoss or s._isMerged) then CT:LoadSegmentData(s) end
+                        if s._sessionID and not s._dataLoaded then CT:LoadSegmentData(s) end
                     end
                 end
                 CT:ClearLoadedSessionIDs()
