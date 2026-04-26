@@ -110,7 +110,15 @@ function HL:Build()
                 if seg.type == "mythicplus" or seg.type == "boss" then keep = true end
                 if seg._isBoss or seg._isMerged or seg._instanceTag then keep = true end
                 
-                if keep then table.insert(cleaned, seg) end
+                if keep then 
+                    table.insert(cleaned, seg) 
+                else
+                    -- 记录被删的 sessionID,防止下次扫描复活
+                    if seg._sessionID and ns.CombatTracker then
+                        ns.CombatTracker._deletedSessionIDs = ns.CombatTracker._deletedSessionIDs or {}
+                        ns.CombatTracker._deletedSessionIDs[seg._sessionID] = true
+                    end
+                end
             end
             ns.Segments.history = cleaned
             
@@ -329,6 +337,13 @@ function HL:MakeItem(parent)
         if ns.Segments._locked then return end -- 战斗中严格禁止删除历史记录
 
         if data.key == "history" and data.index then
+            -- 0. 记录被删的 sessionID,防止下次扫描复活
+            local deletingSeg = ns.Segments.history[data.index]
+            if deletingSeg and deletingSeg._sessionID and ns.CombatTracker then
+                ns.CombatTracker._deletedSessionIDs = ns.CombatTracker._deletedSessionIDs or {}
+                ns.CombatTracker._deletedSessionIDs[deletingSeg._sessionID] = true
+            end
+
             -- 1. 修正 viewIndex 偏移（核心保护机制，防止底层渲染空指针）
             if ns.Segments.viewIndex == data.index then
                 -- 如果删的是当前正在看的，退回第一个或总计

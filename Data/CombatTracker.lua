@@ -109,6 +109,8 @@ end
 
 -- ============================================================
 -- 脱战后: 解析归档 session → history
+-- 通过对比 sessionID set,有就跳过,没有就插入。
+-- 任何理由(secret 没解、事件没触发、异常被吞)漏掉的段,下次扫到都会补。
 -- ============================================================
 local function processArchivedSessions()
     local segs = ns.Segments
@@ -116,101 +118,134 @@ local function processArchivedSessions()
     local sessions     = C_DamageMeter.GetAvailableCombatSessions()
     local sessionCount = sessions and #sessions or 0
     if sessionCount == 0 then return end
-    if CT._lastProcessedCount > sessionCount then
-        CT._lastProcessedCount   = 0
-        CT._baselineSessionCount = 0
-    end
-    local lastProcessed = CT._lastProcessedCount
-    if sessionCount > lastProcessed then
-        for i = lastProcessed + 1, sessionCount do
-            local s   = sessions[i]
-            local sid = s.sessionID
-            local dur = s.durationSeconds or 0
-            if dur == 0 then
-                -- skip
-            elseif dur >= (ns.db and ns.db.tracking and ns.db.tracking.minCombatTime or 2) then
-                local isBoss = false
-                if s.name and (s.name:sub(1, 3) == "(!)" or string.find(s.name, "(!)", 1, true)) then isBoss = true end
-                if CT._bossSessionIndices and CT._bossSessionIndices[i] then isBoss = true end
-                local instanceTag = (ns.state.isInInstance and CT._currentInstanceTag) or CT._exitingInstanceTag or nil
-                local seg = segs:NewSegment("history", s.name or GetZoneText() or "Combat")
-                seg.isActive = false; seg.duration = dur; seg.endTime = GetTime(); seg.startTime = GetTime() - dur
-                seg._isBoss = isBoss; seg._instanceTag = instanceTag
-                seg._instanceDisplayName = CT._currentInstanceName or nil
-                seg._sessionIdx = i; seg._sessionID = sid; seg._dataLoaded = false
 
-                local ok2, deathSession = pcall(C_DamageMeter.GetCombatSessionFromID, sid, Enum.DamageMeterType.Deaths)
-                if ok2 and deathSession and deathSession.combatSources then
-                    for _, src in ipairs(deathSession.combatSources) do
-                        local guid    = src.sourceGUID
-                        local deaths  = getAmount(src.totalAmount)
-                        local recapID = getAmount(src.deathRecapID)
-                        if guid and (deaths > 0 or recapID > 0) and recapID > 0 then
-                            local class = src.classFilename
-                            if not class then
-                                if ns:IsNPCGUID(guid) then
-                                    class = "NPC"
-                                else
-                                    local ok, _, ce = pcall(GetPlayerInfoByGUID, guid)
-                                    class = (ok and ce) or "WARRIOR"
+    -- 1. 建立 history 中已有 sessionID 的索引
+    local existingSessionIDs = {}
+    for _, seg in ipairs(segs.history) do
+        if seg._sessionID then
+            existingSessionIDs[seg._sessionID] = true
+        end
+    end
+
+    -- 2. 遍历 API 返回的 session,缺什么补什么
+    local addedAny = false
+    for i = (CT._baselineSessionCount or 0) + 1, sessionCount do
+        local s = sessions[i]
+        if not s then break end
+        local sid = s.sessionID
+        local dur = s.durationSeconds or 0
+
+        if dur <= 0 then
+            -- 0 时长 session(尚未稳定),跳过,下次扫描再处理
+        elseif existingSessionIDs[sid] then
+            -- 已存在,跳过(幂等核心)
+        elseif CT._deletedSessionIDs and CT._deletedSessionIDs[sid] then
+            -- 用户主动删过,不要复活
+        elseif dur < (ns.db and ns.db.tracking and ns.db.tracking.minCombatTime or 2) then
+            -- 时长不足,跳过
+        else
+            -- API 有但 history 没有 → 新增
+            local isBoss = false
+            if s.name and (s.name:sub(1, 3) == "(!)" or string.find(s.name, "(!)", 1, true)) then
+                isBoss = true
+            end
+            if CT._bossSessionIndices and CT._bossSessionIndices[i] then
+                isBoss = true
+            end
+
+            local instanceTag = (ns.state.isInInstance and CT._currentInstanceTag)
+                                or CT._exitingInstanceTag or nil
+
+            local seg = segs:NewSegment("history", s.name or GetZoneText() or "Combat")
+            seg.isActive = false
+            seg.duration = dur
+            seg.endTime = GetTime()
+            seg.startTime = GetTime() - dur
+            seg._isBoss = isBoss
+            seg._instanceTag = instanceTag
+            seg._instanceDisplayName = CT._currentInstanceName or nil
+            seg._sessionIdx = i
+            seg._sessionID = sid
+            seg._dataLoaded = false  -- 懒加载
+
+            -- 死亡日志(新增段才构建,避免覆盖用户已查看的)
+            local ok2, deathSession = pcall(C_DamageMeter.GetCombatSessionFromID,
+                sid, Enum.DamageMeterType.Deaths)
+            if ok2 and deathSession and deathSession.combatSources then
+                for _, src in ipairs(deathSession.combatSources) do
+                    local guid    = src.sourceGUID
+                    local deaths  = getAmount(src.totalAmount)
+                    local recapID = getAmount(src.deathRecapID)
+                    if guid and (deaths > 0 or recapID > 0) and recapID > 0 then
+                        local class = src.classFilename
+                        if not class then
+                            if ns:IsNPCGUID(guid) then
+                                class = "NPC"
+                            else
+                                local ok, _, ce = pcall(GetPlayerInfoByGUID, guid)
+                                class = (ok and ce) or "WARRIOR"
+                            end
+                        end
+                        local deathRecord = buildDeathRecordFromRecapID(recapID, guid, src.name, class)
+                        if deathRecord then
+                            local insertIdx = deathRecord.isSelf and 1 or (#seg.deathLog + 1)
+                            if not deathRecord.isSelf then
+                                for di, dr in ipairs(seg.deathLog) do
+                                    if not dr.isSelf then insertIdx = di; break end
                                 end
                             end
-                            local deathRecord = buildDeathRecordFromRecapID(recapID, guid, src.name, class)
-                            if deathRecord then
-                                local replaced = false
-                                for di, existing in ipairs(seg.deathLog) do
+                            table.insert(seg.deathLog, insertIdx, deathRecord)
+                            while #seg.deathLog > 50 do table.remove(seg.deathLog) end
+
+                            -- 同步到 Overall
+                            local ovr = segs.overall
+                            if ovr then
+                                ovr.deathLog = ovr.deathLog or {}
+                                local ovrReplaced = false
+                                for di, existing in ipairs(ovr.deathLog) do
                                     if existing.playerGUID == guid then
-                                        if existing._fromRecap then replaced = true
-                                        else seg.deathLog[di] = deathRecord; replaced = true end
-                                        break
+                                        if existing._recapID and deathRecord._recapID
+                                           and existing._recapID == deathRecord._recapID then
+                                            ovrReplaced = true
+                                        elseif not existing._fromRecap then
+                                            ovr.deathLog[di] = deathRecord
+                                            ovrReplaced = true
+                                        elseif not existing._recapID then
+                                            ovr.deathLog[di] = deathRecord
+                                            ovrReplaced = true
+                                        end
+                                        if ovrReplaced then break end
                                     end
                                 end
-                                if not replaced then
-                                    local insertIdx = deathRecord.isSelf and 1 or (#seg.deathLog + 1)
+                                if not ovrReplaced then
+                                    local ovrInsertIdx = deathRecord.isSelf and 1 or (#ovr.deathLog + 1)
                                     if not deathRecord.isSelf then
-                                        for di, dr in ipairs(seg.deathLog) do if not dr.isSelf then insertIdx = di; break end end
-                                    end
-                                    table.insert(seg.deathLog, insertIdx, deathRecord)
-                                end
-                                while #seg.deathLog > 50 do table.remove(seg.deathLog) end
-                                -- 同步到 Overall
-                                local ovr = segs.overall
-                                if ovr then
-                                    ovr.deathLog = ovr.deathLog or {}
-                                    local ovrReplaced = false
-                                    for di, existing in ipairs(ovr.deathLog) do
-                                        if existing.playerGUID == guid then
-                                            if existing._recapID and deathRecord._recapID and existing._recapID == deathRecord._recapID then
-                                                ovrReplaced = true
-                                            elseif not existing._fromRecap then
-                                                ovr.deathLog[di] = deathRecord; ovrReplaced = true
-                                            elseif not existing._recapID then
-                                                ovr.deathLog[di] = deathRecord; ovrReplaced = true
-                                            end
-                                            if ovrReplaced then break end
+                                        for di, dr in ipairs(ovr.deathLog) do
+                                            if not dr.isSelf then ovrInsertIdx = di; break end
                                         end
                                     end
-                                    if not ovrReplaced then
-                                        local insertIdx = deathRecord.isSelf and 1 or (#ovr.deathLog + 1)
-                                        if not deathRecord.isSelf then
-                                            for di, dr in ipairs(ovr.deathLog) do if not dr.isSelf then insertIdx = di; break end end
-                                        end
-                                        table.insert(ovr.deathLog, insertIdx, deathRecord)
-                                    end
-                                    while #ovr.deathLog > 50 do table.remove(ovr.deathLog) end
+                                    table.insert(ovr.deathLog, ovrInsertIdx, deathRecord)
                                 end
+                                while #ovr.deathLog > 50 do table.remove(ovr.deathLog) end
                             end
                         end
                     end
                 end
-                table.insert(segs.history, 1, seg)
-                CT:SmartTrimHistory()
-                segs.viewIndex = 1
-                if ns.SaveSessionHistory then ns:SaveSessionHistory() end
             end
+
+            table.insert(segs.history, 1, seg)
+            existingSessionIDs[sid] = true  -- 索引同步,避免本次循环重复插入
+            addedAny = true
         end
-        CT._lastProcessedCount = sessionCount
     end
+
+    -- 3. 收尾
+    if addedAny then
+        CT:SmartTrimHistory()
+        if ns.SaveSessionHistory then ns:SaveSessionHistory() end
+    end
+    CT._lastProcessedCount = sessionCount
+
     ns.state.lastCombatWasBoss = false
     CT._bossSessionIndices = CT._bossSessionIndices or {}
     CT:RebuildOverall(sessions, sessionCount)
@@ -223,95 +258,75 @@ local waitTicker, waitAttempts = nil, 0
 
 local function waitAndProcessArchived(fastPath)
     if waitTicker then return end
-    -- fastPath 节流：500ms 内只处理一次，防止事件风暴
+
+    -- fastPath 节流:300ms 内最多 1 次,防止事件风暴
     if fastPath then
         local now = GetTime()
-        if CT._lastFastPathTime and (now - CT._lastFastPathTime) < 0.5 then return end
+        if CT._lastFastPathTime and (now - CT._lastFastPathTime) < 0.3 then return end
         CT._lastFastPathTime = now
-
-        -- 没有未处理的新 session 直接跳出，避免无意义工作
-        local sessions = C_DamageMeter.GetAvailableCombatSessions()
-        local count = sessions and #sessions or 0
-        if count <= CT._lastProcessedCount then return end
     end
 
     waitAttempts = 0
-    if fastPath then
-        local function quickCheck()
-            local sessions = C_DamageMeter.GetAvailableCombatSessions()
-            local count = sessions and #sessions or 0
-            for i = CT._lastProcessedCount + 1, count do
-                local s = sessions[i]
-                if isSessionStillSecret(s.sessionID) then return false end
-                if (s.durationSeconds or 0) == 0 then return false end
-            end
-            return true
+
+    local function buildExistingSet()
+        local existing = {}
+        for _, seg in ipairs(ns.Segments.history) do
+            if seg._sessionID then existing[seg._sessionID] = true end
         end
-        if quickCheck() then
-            processArchivedSessions()
-            if CT._pendingMergeArgs then
-                local args = CT._pendingMergeArgs; CT._pendingMergeArgs = nil
-                CT:MergeAndCleanInstance(args.tag, args.lvl, args.mapName, args.instName)
-            end
-            if ns.Segments then ns.Segments._locked = false end
-            if ns.UI then C_Timer.After(0, function() ns.UI:Layout() end) end
-            return
-        end
+        return existing
     end
+
     local function anyUnprocessedStillSecret()
         local sessions = C_DamageMeter.GetAvailableCombatSessions()
         local count    = sessions and #sessions or 0
-        for i = CT._lastProcessedCount + 1, count do
+        local existing = buildExistingSet()
+        for i = (CT._baselineSessionCount or 0) + 1, count do
             local s = sessions[i]
-            if isSessionStillSecret(s.sessionID) then return true end
-            if (s.durationSeconds or 0) == 0 then return true end
+            if s and not existing[s.sessionID]
+               and not (CT._deletedSessionIDs and CT._deletedSessionIDs[s.sessionID]) then
+                if isSessionStillSecret(s.sessionID) then return true end
+                if (s.durationSeconds or 0) == 0 then return true end
+            end
         end
         return false
     end
+
     local function doAfterProcess()
-        processArchivedSessions()
+        -- 即使 processArchivedSessions 内部崩,也要保证后续清理逻辑跑
+        pcall(processArchivedSessions)
         if CT._pendingMergeArgs then
-            local args = CT._pendingMergeArgs; CT._pendingMergeArgs = nil
-            CT:MergeAndCleanInstance(args.tag, args.lvl, args.mapName, args.instName)
+            local args = CT._pendingMergeArgs
+            CT._pendingMergeArgs = nil
+            pcall(CT.MergeAndCleanInstance, CT, args.tag, args.lvl, args.mapName, args.instName)
         end
         if ns.Segments then ns.Segments._locked = false end
         if ns.UI then C_Timer.After(0, function() ns.UI:Layout() end) end
+
+        -- 1 秒后再扫一次
         C_Timer.After(1, function()
-            local function tryRefresh(attempts)
-                if ns.state.inCombat then return end
-                local segs = ns.Segments
-                if not segs or not segs.history or #segs.history == 0 then return end
-                local latestSeg = segs.history[1]
-                if not latestSeg or not latestSeg._sessionID then return end
-                local sessions = C_DamageMeter.GetAvailableCombatSessions()
-                local sessionActive, latestDur = false, 0
-                for _, s in ipairs(sessions or {}) do
-                    if s.sessionID == latestSeg._sessionID then latestDur = s.durationSeconds or 0; sessionActive = true; break end
-                end
-                if not sessionActive then return end
-                local latestDmg = 0
-                local ok, dmSession = pcall(C_DamageMeter.GetCombatSessionFromID, latestSeg._sessionID, Enum.DamageMeterType.DamageDone)
-                if ok and dmSession and not (issecretvalue and issecretvalue(dmSession.totalAmount)) then latestDmg = dmSession.totalAmount or 0 end
-                local isChanged = false
-                if latestDur > 0 and math.abs(latestDur - (latestSeg.duration or 0)) > 0.1 then isChanged = true end
-                if latestDmg > 0 and math.abs(latestDmg - (latestSeg.totalDamage or 0)) > 0.1 then isChanged = true end
-                if isChanged then
-                    latestSeg._dataLoaded = false; CT:LoadSegmentData(latestSeg)
-                    ns.Segments._preReloadOverallData = nil
-                    CT:RebuildOverall(sessions, sessions and #sessions or 0)
-                    if ns.Analysis then ns.Analysis:InvalidateCache() end
-                    if ns.UI and ns.UI:IsVisible() then ns.UI:Layout() end
-                end
-                if attempts < 10 then C_Timer.After(1, function() tryRefresh(attempts + 1) end) end
-            end
-            tryRefresh(1)
+            if ns.state.inCombat then return end
+            pcall(processArchivedSessions)
+            if ns.Analysis then ns.Analysis:InvalidateCache() end
+            if ns.UI and ns.UI:IsVisible() then ns.UI:Layout() end
         end)
     end
-    if not anyUnprocessedStillSecret() then doAfterProcess(); return end
+
+    -- 立即可处理:直接执行
+    if not anyUnprocessedStillSecret() then
+        doAfterProcess()
+        return
+    end
+
+    -- 有 secret 在解密,等待
     waitTicker = C_Timer.NewTicker(0.3, function()
         waitAttempts = waitAttempts + 1
         if InCombatLockdown() then return end
-        if waitAttempts >= 10 then if waitTicker then waitTicker:Cancel(); waitTicker = nil end; doAfterProcess(); return end
+        if waitAttempts >= 10 then
+            -- 超时也归档,反正下次会再扫(幂等保证)
+            if waitTicker then waitTicker:Cancel(); waitTicker = nil end
+            doAfterProcess()
+            return
+        end
         if anyUnprocessedStillSecret() then return end
         if waitTicker then waitTicker:Cancel(); waitTicker = nil end
         doAfterProcess()
@@ -372,12 +387,14 @@ function CT:ResetMeterForNewRun()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then CT._internalReset = true; C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true; CT._bossSessionIndices = {}
+    CT._deletedSessionIDs = {}  -- 清黑名单
     if ns.MythicPlus then ns.MythicPlus:ResetBaseline() end
 end
 function CT:MarkReset()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true
+    CT._deletedSessionIDs = {}  -- 清黑名单
 end
 function CT:SetBaseline()
     local sessions = C_DamageMeter.GetAvailableCombatSessions()
@@ -386,6 +403,7 @@ end
 function CT:ResetBaselineToCurrentCount()
     local sessions = C_DamageMeter.GetAvailableCombatSessions(); local count = sessions and #sessions or 0
     CT._baselineSessionCount = count; CT._lastProcessedCount = count; CT._initialBaselineSet = true; CT._bossSessionIndices = {}
+    CT._deletedSessionIDs = {}  -- 清黑名单
 end
 function CT:PullCurrentData()
     if ns.Config and ns.Config._pvRefreshBlocked then return end
@@ -547,6 +565,14 @@ function CT:RegisterEvents()
         end
         CT._bossSessionIndices = {}
     end
+end
+
+function CT:ScanArchivedSessions()
+    if self._scanInProgress then return end
+    if ns.state.inCombat then return end
+    self._scanInProgress = true
+    pcall(processArchivedSessions)
+    self._scanInProgress = false
 end
 
 -- ============================================================

@@ -10,6 +10,22 @@ local COUNT_MODES = UI.COUNT_MODES
 local MODE_TO_DM = UI.MODE_TO_DM
 local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 
+-- module-level helper：用于 pcall 调用而不创建闭包
+local function _safeSetBarValue(fs, total, ps, showPS, isCount, suffix)
+    if isCount then
+        fs:SetFormattedText("%s" .. suffix, AbbreviateNumbers(total))
+    elseif showPS then
+        fs:SetFormattedText("%s (%s)", AbbreviateNumbers(total), AbbreviateNumbers(ps))
+    else
+        fs:SetText(AbbreviateNumbers(total))
+    end
+end
+
+local function _safeSetStatusBar(sb, maxV, val)
+    sb:SetMinMaxValues(0, maxV)
+    sb:SetValue(val)
+end
+
 function UI:MakeBar(parent, section, index)
     local bar = {}
     bar.frame = CreateFrame("Button", nil, parent)
@@ -153,31 +169,37 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
             self:AnchorBarTexts(bar); self:ApplyFont(bar.rank, font, fSz-1, fOut, fShad); self:ApplyFont(bar.name, font, fSz, fOut, fShad); self:ApplyFont(bar.value, font, fSz-1, fOut, fShad)
             bar.fill:Hide(); bar.statusbar:Show()
             local cls = src.classFilename or "WARRIOR"; local cc = ns:GetClassColor(cls) or {0.5, 0.5, 0.5}
+
             bar.statusbar:SetStatusBarTexture(texPath); bar.fill:SetTexture(texPath)
             bar.statusbar:SetStatusBarColor(cc[1], cc[2], cc[3], alpha)
             local tex = bar.statusbar:GetStatusBarTexture(); if tex then tex:SetVertexColor(cc[1], cc[2], cc[3], alpha) end
             bar.fill:SetVertexColor(cc[1], cc[2], cc[3], alpha)
-            local maxAmtSafe = (type(maxAmt) == "number") and maxAmt or 1
-            local totalAmtSafe = (type(src.totalAmount) == "number") and src.totalAmount or 0
-            bar.statusbar:SetMinMaxValues(0, maxAmtSafe)
-            bar.statusbar:SetValue(totalAmtSafe)
+
+            -- statusbar:用 helper + pcall(无闭包)
+            pcall(_safeSetStatusBar, bar.statusbar, maxAmt or 1, src.totalAmount)
+
             bar.rank:SetText(ns.db.display.showRank and (i .. ".") or "")
+
+            -- name:secret value 时跳过,避免崩溃
             local nameRaw = src.name
-            local nameStr = (type(nameRaw) == "string") and nameRaw or ""
+            local nameStr = ""
+            if nameRaw and type(nameRaw) == "string" 
+               and not (issecretvalue and issecretvalue(nameRaw)) then
+                nameStr = nameRaw
+            end
             bar.name:SetText(ns:DisplayName(nameStr)); bar._nameStr = nameStr
+
             do local nr, ng, nb
                 if textMode == "white" then nr, ng, nb = 1, 1, 1
                 elseif textMode == "custom" then local c = ns.db.display.textColor or {1,1,1}; nr, ng, nb = c[1], c[2], c[3]
                 else nr, ng, nb = cc[1], cc[2], cc[3] end
                 bar.name:SetTextColor(nr, ng, nb)
             end
-            if COUNT_MODES[mode] then
-                bar.value:SetFormattedText("%s" .. L["次"], AbbreviateNumbers(src.totalAmount))
-            elseif ns.db.display.showPerSecond then
-                bar.value:SetFormattedText("%s (%s)", AbbreviateNumbers(src.totalAmount), AbbreviateNumbers(src.amountPerSecond))
-            else
-                bar.value:SetText(AbbreviateNumbers(src.totalAmount))
-            end
+
+            -- value:用 helper + pcall(无闭包)
+            pcall(_safeSetBarValue, bar.value, src.totalAmount, src.amountPerSecond,
+                  ns.db.display.showPerSecond, COUNT_MODES[mode], L["次"])
+                  
             if not bar._apiData then bar._apiData = {} end
             bar._apiData.isAPI = true; bar._apiData.sourceGUID = src.sourceGUID; bar._apiData.sourceCreatureID = src.sourceCreatureID
             bar._apiData.isLocalPlayer = src.isLocalPlayer; bar._apiData.totalAmount = src.totalAmount; bar._apiData.amountPerSecond = src.amountPerSecond; bar._apiData.sessionType = sType

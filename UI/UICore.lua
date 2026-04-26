@@ -170,7 +170,7 @@ function UI:ApplyAllFonts()
     if self.splitTab then self:ApplyFont(self.splitTab.text, font, fSz - 1, fOut, fShad) end
 end
 
--- sessionType 和 dmType 都是数字，用嵌套 table 避免字符串拼接
+-- sessionType 和 dmType 都是数字,用嵌套 table 避免字符串拼接产生临时字符串
 function UI:GetCachedSession(sessionType, dmType)
     local cache = self._sessionCache
     local sub = cache[sessionType]
@@ -183,7 +183,8 @@ function UI:GetCachedSession(sessionType, dmType)
         v = C_DamageMeter.GetCombatSessionFromType(sessionType, dmType) or false
         sub[dmType] = v
     end
-    return v or nil
+    if v == false then return nil end
+    return v
 end
 
 function UI:EnsureCreated() if self.frame then return end; self:Build() end

@@ -137,40 +137,46 @@ function ns.CombatTracker:LoadSegmentData(seg)
         if okET and etSession and etSession.combatSources then
             for _, enemy in ipairs(etSession.combatSources) do
                 local creatureID = enemy.sourceCreatureID
-                local enemyName = enemy.name or "?"
-                local total = getAmount(enemy.totalAmount)
-                if total > 0 then
-                    local perSec = getAmount(enemy.amountPerSecond)
-                    local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
-                    local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
-                        sid, Enum.DamageMeterType.EnemyDamageTaken, nil, creatureID)
-                    if okSrc and srcData and srcData.combatSpells then
-                        -- 整个循环用一个 pcall 包住，内部直接读字段。任何 secret value 会让 pcall 失败，跳过这条敌人即可
-                        pcall(function()
-                            for _, sp in ipairs(srcData.combatSpells) do
-                                local details = sp.combatSpellDetails
-                                if details then
-                                    local playerName = details.unitName
-                                    local playerClass = details.unitClassFilename
-                                    if not playerClass or playerClass == "" then playerClass = "NPC" end
-                                    local amt = getAmount(details.amount)
-                                    if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                    if playerName and type(playerName) == "string" and amt > 0
-                                    and not (issecretvalue and issecretvalue(playerName)) then
-                                        local found = false
-                                        for _, s in ipairs(entry.sources) do
-                                            if s.name == playerName then s.amount = s.amount + amt; found = true; break end
-                                        end
-                                        if not found then
-                                            table.insert(entry.sources, { name = playerName, class = playerClass, amount = amt })
+                -- 过滤 secret name
+                local enemyName = "?"
+                if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                    enemyName = enemy.name
+                end
+                if creatureID or enemyName ~= "?" then
+                    local total = getAmount(enemy.totalAmount)
+                    if total > 0 then
+                        local perSec = getAmount(enemy.amountPerSecond)
+                        local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
+                        local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
+                            sid, Enum.DamageMeterType.EnemyDamageTaken, nil, creatureID)
+                        if okSrc and srcData and srcData.combatSpells then
+                            -- 整个循环用一个 pcall 包住，内部直接读字段。任何 secret value 会让 pcall 失败，跳过这条敌人即可
+                            pcall(function()
+                                for _, sp in ipairs(srcData.combatSpells) do
+                                    local details = sp.combatSpellDetails
+                                    if details then
+                                        local playerName = details.unitName
+                                        local playerClass = details.unitClassFilename
+                                        if not playerClass or playerClass == "" then playerClass = "NPC" end
+                                        local amt = getAmount(details.amount)
+                                        if amt == 0 then amt = getAmount(sp.totalAmount) end
+                                        if playerName and type(playerName) == "string" and amt > 0
+                                        and not (issecretvalue and issecretvalue(playerName)) then
+                                            local found = false
+                                            for _, s in ipairs(entry.sources) do
+                                                if s.name == playerName then s.amount = s.amount + amt; found = true; break end
+                                            end
+                                            if not found then
+                                                table.insert(entry.sources, { name = playerName, class = playerClass, amount = amt })
+                                            end
                                         end
                                     end
                                 end
-                            end
-                        end)
+                            end)
+                        end
+                        table.sort(entry.sources, function(a, b) return a.amount > b.amount end)
+                        table.insert(seg.enemyDamageTakenList, entry)
                     end
-                    table.sort(entry.sources, function(a, b) return a.amount > b.amount end)
-                    table.insert(seg.enemyDamageTakenList, entry)
                 end
             end
             table.sort(seg.enemyDamageTakenList, function(a, b) return a.total > b.total end)
@@ -349,41 +355,64 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
                 if okET and etSession and etSession.combatSources then
                     if not segs.overall.enemyDamageTakenList then segs.overall.enemyDamageTakenList = {} end
                     local edtMap = {}
-                    for _, existing in ipairs(segs.overall.enemyDamageTakenList) do edtMap[existing.creatureID or existing.name] = existing end
+                    -- 建索引时也过滤 secret name
+                    for _, existing in ipairs(segs.overall.enemyDamageTakenList) do 
+                        local existingKey = existing.creatureID
+                        if not existingKey and type(existing.name) == "string" 
+                           and not (issecretvalue and issecretvalue(existing.name)) then
+                            existingKey = existing.name
+                        end
+                        if existingKey then edtMap[existingKey] = existing end
+                    end
                     for _, enemy in ipairs(etSession.combatSources) do
-                        local key = enemy.sourceCreatureID or enemy.name
-                        local total = getAmount(enemy.totalAmount)
-                        if total > 0 then
-                            if not edtMap[key] then
-                                edtMap[key] = { creatureID = enemy.sourceCreatureID, name = enemy.name or "?", total = 0, sources = {} }
-                                table.insert(segs.overall.enemyDamageTakenList, edtMap[key])
+                        -- ★ 计算 key:优先 creatureID,无则用 name(必须是非 secret 字符串)
+                        local key = enemy.sourceCreatureID
+                        if not key then
+                            local nm = enemy.name
+                            if type(nm) == "string" and not (issecretvalue and issecretvalue(nm)) then
+                                key = nm
                             end
-                            edtMap[key].total = edtMap[key].total + total
-                            local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
-                                sid, Enum.DamageMeterType.EnemyDamageTaken, nil, enemy.sourceCreatureID)
-                            if okSrc and srcData and srcData.combatSpells then
-                                pcall(function()
-                                    for _, sp in ipairs(srcData.combatSpells) do
-                                        local details = sp.combatSpellDetails
-                                        if details then
-                                            local pName = details.unitName
-                                            local pClass = details.unitClassFilename
-                                            if not pClass or pClass == "" then pClass = "NPC" end
-                                            local amt = getAmount(details.amount)
-                                            if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                            if pName and type(pName) == "string" and amt > 0
-                                            and not (issecretvalue and issecretvalue(pName)) then
-                                                local found = false
-                                                for _, s in ipairs(edtMap[key].sources) do
-                                                    if s.name == pName then s.amount = s.amount + amt; found = true; break end
-                                                end
-                                                if not found then
-                                                    table.insert(edtMap[key].sources, { name = pName, class = pClass, amount = amt })
+                        end
+                        -- key 仍然为 nil(name 还是 secret)→ 跳过这条敌人,下次 RebuildOverall 再处理
+                        if key then
+                            local total = getAmount(enemy.totalAmount)
+                            if total > 0 then
+                                if not edtMap[key] then
+                                    -- 存 name 时也过滤 secret
+                                    local safeName = "?"
+                                    if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                                        safeName = enemy.name
+                                    end
+                                    edtMap[key] = { creatureID = enemy.sourceCreatureID, name = safeName, total = 0, sources = {} }
+                                    table.insert(segs.overall.enemyDamageTakenList, edtMap[key])
+                                end
+                                edtMap[key].total = edtMap[key].total + total
+                                local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
+                                    sid, Enum.DamageMeterType.EnemyDamageTaken, nil, enemy.sourceCreatureID)
+                                if okSrc and srcData and srcData.combatSpells then
+                                    pcall(function()
+                                        for _, sp in ipairs(srcData.combatSpells) do
+                                            local details = sp.combatSpellDetails
+                                            if details then
+                                                local pName = details.unitName
+                                                local pClass = details.unitClassFilename
+                                                if not pClass or pClass == "" then pClass = "NPC" end
+                                                local amt = getAmount(details.amount)
+                                                if amt == 0 then amt = getAmount(sp.totalAmount) end
+                                                if pName and type(pName) == "string" and amt > 0
+                                                   and not (issecretvalue and issecretvalue(pName)) then
+                                                    local found = false
+                                                    for _, s in ipairs(edtMap[key].sources) do
+                                                        if s.name == pName then s.amount = s.amount + amt; found = true; break end
+                                                    end
+                                                    if not found then
+                                                        table.insert(edtMap[key].sources, { name = pName, class = pClass, amount = amt })
+                                                    end
                                                 end
                                             end
                                         end
-                                    end
-                                end)
+                                    end)
+                                end
                             end
                         end
                     end
@@ -451,40 +480,45 @@ function ns.CombatTracker:RebuildOverall(sessions, sessionCount)
         if okET and etSession and etSession.combatSources then
             for _, enemy in ipairs(etSession.combatSources) do
                 local creatureID = enemy.sourceCreatureID
-                local enemyName = enemy.name or "?"
-                local total = getAmount(enemy.totalAmount)
-                if total > 0 then
-                    local perSec = getAmount(enemy.amountPerSecond)
-                    local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
-                    local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-                        Enum.DamageMeterSessionType.Overall, Enum.DamageMeterType.EnemyDamageTaken,
-                        nil, creatureID)
-                    if okSrc and srcData and srcData.combatSpells then
-                        pcall(function()
-                            for _, sp in ipairs(srcData.combatSpells) do
-                                local details = sp.combatSpellDetails
-                                if details then
-                                    local playerName = details.unitName
-                                    local playerClass = details.unitClassFilename
-                                    if not playerClass or playerClass == "" then playerClass = "NPC" end
-                                    local amt = getAmount(details.amount)
-                                    if amt == 0 then amt = getAmount(sp.totalAmount) end
-                                    if playerName and type(playerName) == "string" and amt > 0
-                                    and not (issecretvalue and issecretvalue(playerName)) then
-                                        local found = false
-                                        for _, s in ipairs(entry.sources) do
-                                            if s.name == playerName then s.amount = s.amount + amt; found = true; break end
-                                        end
-                                        if not found then
-                                            table.insert(entry.sources, { name = playerName, class = playerClass, amount = amt })
+                local enemyName = "?"
+                if type(enemy.name) == "string" and not (issecretvalue and issecretvalue(enemy.name)) then
+                    enemyName = enemy.name
+                end
+                if creatureID or enemyName ~= "?" then
+                    local total = getAmount(enemy.totalAmount)
+                    if total > 0 then
+                        local perSec = getAmount(enemy.amountPerSecond)
+                        local entry = { creatureID = creatureID, name = enemyName, total = total, perSec = perSec, sources = {} }
+                        local okSrc, srcData = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+                            Enum.DamageMeterSessionType.Overall, Enum.DamageMeterType.EnemyDamageTaken,
+                            nil, creatureID)
+                        if okSrc and srcData and srcData.combatSpells then
+                            pcall(function()
+                                for _, sp in ipairs(srcData.combatSpells) do
+                                    local details = sp.combatSpellDetails
+                                    if details then
+                                        local playerName = details.unitName
+                                        local playerClass = details.unitClassFilename
+                                        if not playerClass or playerClass == "" then playerClass = "NPC" end
+                                        local amt = getAmount(details.amount)
+                                        if amt == 0 then amt = getAmount(sp.totalAmount) end
+                                        if playerName and type(playerName) == "string" and amt > 0
+                                        and not (issecretvalue and issecretvalue(playerName)) then
+                                            local found = false
+                                            for _, s in ipairs(entry.sources) do
+                                                if s.name == playerName then s.amount = s.amount + amt; found = true; break end
+                                            end
+                                            if not found then
+                                                table.insert(entry.sources, { name = playerName, class = playerClass, amount = amt })
+                                            end
                                         end
                                     end
                                 end
-                            end
-                        end)
+                            end)
+                        end
+                        table.sort(entry.sources, function(a, b) return a.amount > b.amount end)
+                        table.insert(segs.overall.enemyDamageTakenList, entry)
                     end
-                    table.sort(entry.sources, function(a, b) return a.amount > b.amount end)
-                    table.insert(segs.overall.enemyDamageTakenList, entry)
                 end
             end
             table.sort(segs.overall.enemyDamageTakenList, function(a, b) return a.total > b.total end)

@@ -103,7 +103,16 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
             local indicesToRemove, bossCount = {}, 0
             if doCleanTrash then
                 for _, entry in ipairs(instSegs) do
-                    if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+                    if entry.seg._isBoss then 
+                        bossCount = bossCount + 1 
+                    else 
+                        -- 记录被删的 sessionID,防止下次扫描复活
+                        if entry.seg._sessionID then
+                            CT._deletedSessionIDs = CT._deletedSessionIDs or {}
+                            CT._deletedSessionIDs[entry.seg._sessionID] = true
+                        end
+                        table.insert(indicesToRemove, entry.idx) 
+                    end
                 end
                 table.sort(indicesToRemove, function(a, b) return a > b end)
                 for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end
@@ -200,7 +209,15 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
     local indicesToRemove, bossCount = {}, 0
     if doCleanTrash then
         for _, entry in ipairs(instSegs) do
-            if entry.seg._isBoss then bossCount = bossCount + 1 else table.insert(indicesToRemove, entry.idx) end
+            if entry.seg._isBoss then 
+                bossCount = bossCount + 1 
+            else 
+                if entry.seg._sessionID then
+                    CT._deletedSessionIDs = CT._deletedSessionIDs or {}
+                    CT._deletedSessionIDs[entry.seg._sessionID] = true
+                end
+                table.insert(indicesToRemove, entry.idx) 
+            end
         end
         table.sort(indicesToRemove, function(a, b) return a > b end)
         for _, idx in ipairs(indicesToRemove) do table.remove(segs.history, idx) end

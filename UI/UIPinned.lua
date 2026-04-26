@@ -7,6 +7,22 @@ local L = ns.L
 local UI = ns.UI
 local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 
+-- module-level helper：用于 pcall 调用而不创建闭包
+local function _safeSetBarValue(fs, total, ps, showPS, isCount, suffix)
+    if isCount then
+        fs:SetFormattedText("%s" .. suffix, AbbreviateNumbers(total))
+    elseif showPS then
+        fs:SetFormattedText("%s (%s)", AbbreviateNumbers(total), AbbreviateNumbers(ps))
+    else
+        fs:SetText(AbbreviateNumbers(total))
+    end
+end
+
+local function _safeSetStatusBar(sb, maxV, val)
+    sb:SetMinMaxValues(0, maxV)
+    sb:SetValue(val)
+end
+
 function UI:MakePinnedSelfBar(container, sf, section)
     local bar = self:MakeBar(container, section, 0)
     bar.frame:SetFrameLevel(sf:GetFrameLevel() + 10); bar._isPinned = true; bar.frame:Hide(); return bar
@@ -79,26 +95,30 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     pinnedBar.fill:Hide(); pinnedBar.statusbar:Show()
     local cls = src.classFilename or "WARRIOR"; local cc = ns:GetClassColor(cls) or {0.5, 0.5, 0.5}
     pinnedBar.statusbar:SetStatusBarTexture(texPath); pinnedBar.statusbar:SetStatusBarColor(cc[1], cc[2], cc[3], alpha)
-    local maxAmtSafe = (type(maxAmt) == "number") and maxAmt or 1
-    local totalAmtSafe = (type(src.totalAmount) == "number") and src.totalAmount or 0
-    pinnedBar.statusbar:SetMinMaxValues(0, maxAmtSafe)
-    pinnedBar.statusbar:SetValue(totalAmtSafe)
+
+    -- statusbar:用 helper + pcall(无闭包)
+    pcall(_safeSetStatusBar, pinnedBar.statusbar, maxAmt or 1, src.totalAmount)
+
     pinnedBar.rank:SetText(ns.db.display.showRank and (rank .. ".") or "")
+
+    -- name:secret value 时跳过
     local nameRaw = src.name
-    local nameStr = (type(nameRaw) == "string") and nameRaw or ""
+    local nameStr = ""
+    if nameRaw and type(nameRaw) == "string"
+       and not (issecretvalue and issecretvalue(nameRaw)) then
+        nameStr = nameRaw
+    end
     pinnedBar.name:SetText(ns:DisplayName(nameStr))
+
     do local nr, ng, nb
         if textMode == "white" then nr, ng, nb = 1, 1, 1
         elseif textMode == "custom" then local c = ns.db.display.textColor or {1,1,1}; nr, ng, nb = c[1], c[2], c[3]
         else nr, ng, nb = cc[1], cc[2], cc[3] end; pinnedBar.name:SetTextColor(nr, ng, nb)
     end
-    if UI.COUNT_MODES[mode] then
-        pinnedBar.value:SetFormattedText("%s" .. L["次"], AbbreviateNumbers(src.totalAmount))
-    elseif ns.db.display.showPerSecond then
-        pinnedBar.value:SetFormattedText("%s (%s)", AbbreviateNumbers(src.totalAmount), AbbreviateNumbers(src.amountPerSecond))
-    else
-        pinnedBar.value:SetText(AbbreviateNumbers(src.totalAmount))
-    end
+
+    -- value:用 helper + pcall(无闭包)
+    pcall(_safeSetBarValue, pinnedBar.value, src.totalAmount, src.amountPerSecond,
+          ns.db.display.showPerSecond, UI.COUNT_MODES[mode], L["次"])
     if not pinnedBar._apiData then pinnedBar._apiData = {} end
     pinnedBar._apiData.isAPI = true; pinnedBar._apiData.sourceGUID = src.sourceGUID; pinnedBar._apiData.sourceCreatureID = src.sourceCreatureID
     pinnedBar._apiData.isLocalPlayer = true; pinnedBar._apiData.totalAmount = src.totalAmount; pinnedBar._apiData.amountPerSecond = src.amountPerSecond; pinnedBar._apiData.sessionType = sType

@@ -11,6 +11,7 @@ local MODE_TO_DM = UI.MODE_TO_DM
 
 function UI:Refresh()
     if not self.frame or not self.frame:IsShown() then return end
+    -- 嵌套结构的 cache,wipe 子表
     if self._sessionCache then
         for _, sub in pairs(self._sessionCache) do wipe(sub) end
     else
@@ -28,7 +29,12 @@ function UI:Refresh()
         return m
     end
 
-    self:RefreshTitle()
+    -- RefreshTitle 节流:0.5s 内最多 1 次。M+ 倒计时本来就是秒级精度,不影响功能。
+    local now = GetTime()
+    if not self._lastTitleRefresh or (now - self._lastTitleRefresh) > 0.5 then
+        self._lastTitleRefresh = now
+        self:RefreshTitle()
+    end
 
     -- Summary 栏
     if self.summaryBar:IsShown() then
