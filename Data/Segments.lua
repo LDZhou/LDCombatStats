@@ -20,6 +20,7 @@ function Segments:NewSegment(segType, name)
         endTime   = 0,
         duration  = 0,
         isActive  = true,
+        _realTime = time(),
 
         players = {},
 

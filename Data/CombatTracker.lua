@@ -161,6 +161,7 @@ local function processArchivedSessions()
             seg.duration = dur
             seg.endTime = GetTime()
             seg.startTime = GetTime() - dur
+            seg._realTime = time() - math.floor(dur)
             seg._isBoss = isBoss
             seg._instanceTag = instanceTag
             seg._instanceDisplayName = CT._currentInstanceName or nil
@@ -233,7 +234,7 @@ local function processArchivedSessions()
                 end
             end
 
-            table.insert(segs.history, seg) -- 放进去，不再强制指定索引 1
+            table.insert(segs.history, 1, seg)
             existingSessionIDs[sid] = true
             addedAny = true
         end
@@ -241,19 +242,25 @@ local function processArchivedSessions()
 
     -- 3. 收尾
     if addedAny then
-        -- 只按暴雪的 sessionID 倒序排
+        -- 使用绝对时间戳进行排序
         table.sort(segs.history, function(a, b)
-            local idA = a._sessionID or 0
-            local idB = b._sessionID or 0
+            local tA = a._realTime or 0
+            local tB = b._realTime or 0
             
-            -- 如果两个 ID 一样（比如都是打包好的、或者没 ID 的旧记录）
-            -- 按战斗开始时间倒序，防止 Lua 排序报错或乱序
-            if idA == idB then
-                return (a.startTime or 0) > (b.startTime or 0)
+            -- 1. 优先按绝对时间倒序（最新的战斗永远在最前）
+            if tA ~= tB then
+                return tA > tB
             end
             
-            -- 正常情况下，ID 大的（最新的）排在前面
-            return idA > idB
+            -- 2. 如果现实时间恰好一模一样（比如极短时间内人工合并的段落），用暴雪的 sessionID 兜底
+            local idA = a._sessionID or 0
+            local idB = b._sessionID or 0
+            if idA ~= idB then
+                return idA > idB
+            end
+            
+            -- 3. 如果连 ID 都一样，用游戏内部运行时间兜底
+            return (a.startTime or 0) > (b.startTime or 0)
         end)
 
         if ns.SaveSessionHistory then ns:SaveSessionHistory() end
