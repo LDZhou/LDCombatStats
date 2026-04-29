@@ -139,8 +139,8 @@ local function processArchivedSessions()
             -- 0 时长 session(尚未稳定),跳过,下次扫描再处理
         elseif existingSessionIDs[sid] then
             -- 已存在,跳过(幂等核心)
-        elseif CT._deletedSessionIDs and CT._deletedSessionIDs[sid] then
-            -- 用户主动删过,不要复活
+        elseif ns.db and ns.db.deletedSessionIDs and ns.db.deletedSessionIDs[sid] then
+            -- 用户主动删过,不要复活（重载界面也不会复活）
         elseif dur < (ns.db and ns.db.tracking and ns.db.tracking.minCombatTime or 2) then
             -- 时长不足,跳过
         else
@@ -233,15 +233,29 @@ local function processArchivedSessions()
                 end
             end
 
-            table.insert(segs.history, 1, seg)
-            existingSessionIDs[sid] = true  -- 索引同步,避免本次循环重复插入
+            table.insert(segs.history, seg) -- 放进去，不再强制指定索引 1
+            existingSessionIDs[sid] = true
             addedAny = true
         end
     end
 
     -- 3. 收尾
     if addedAny then
-        CT:SmartTrimHistory()
+        -- 只按暴雪的 sessionID 倒序排
+        table.sort(segs.history, function(a, b)
+            local idA = a._sessionID or 0
+            local idB = b._sessionID or 0
+            
+            -- 如果两个 ID 一样（比如都是打包好的、或者没 ID 的旧记录）
+            -- 按战斗开始时间倒序，防止 Lua 排序报错或乱序
+            if idA == idB then
+                return (a.startTime or 0) > (b.startTime or 0)
+            end
+            
+            -- 正常情况下，ID 大的（最新的）排在前面
+            return idA > idB
+        end)
+
         if ns.SaveSessionHistory then ns:SaveSessionHistory() end
     end
     CT._lastProcessedCount = sessionCount
@@ -387,14 +401,14 @@ function CT:ResetMeterForNewRun()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then CT._internalReset = true; C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true; CT._bossSessionIndices = {}
-    CT._deletedSessionIDs = {}  -- 清黑名单
+    if ns.db then ns.db.deletedSessionIDs = {} end
     if ns.MythicPlus then ns.MythicPlus:ResetBaseline() end
 end
 function CT:MarkReset()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true
-    CT._deletedSessionIDs = {}  -- 清黑名单
+    if ns.db then ns.db.deletedSessionIDs = {} end
 end
 function CT:SetBaseline()
     local sessions = C_DamageMeter.GetAvailableCombatSessions()
@@ -464,6 +478,7 @@ function CT:RegisterEvents()
             end
             CT._currentMythicLevel = level or 0; CT._currentMythicMapName = mapName
         elseif event == "PLAYER_ENTERING_WORLD" then
+            CT:SmartTrimHistory()
             ns:UpdateInstanceStatus()
             local inInstance = ns.state.isInInstance
             local rawName, _, _, _, _, _, _, instanceID = GetInstanceInfo()

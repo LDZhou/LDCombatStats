@@ -34,6 +34,7 @@ function ns.CombatTracker:SmartTrimHistory()
     if not segs or not segs.history then return end
     local maxSeg = ns.db and ns.db.tracking and ns.db.tracking.maxSegments or 30
 
+    -- 只要超出上限就从最老的数据（末尾）开刀
     while #segs.history > maxSeg do
         table.remove(segs.history, #segs.history)
     end
@@ -107,9 +108,9 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
                         bossCount = bossCount + 1 
                     else 
                         -- 记录被删的 sessionID,防止下次扫描复活
-                        if entry.seg._sessionID then
-                            CT._deletedSessionIDs = CT._deletedSessionIDs or {}
-                            CT._deletedSessionIDs[entry.seg._sessionID] = true
+                        if entry.seg._sessionID and ns.db then
+                            ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
+                            ns.db.deletedSessionIDs[entry.seg._sessionID] = true
                         end
                         table.insert(indicesToRemove, entry.idx) 
                     end
@@ -212,9 +213,9 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
             if entry.seg._isBoss then 
                 bossCount = bossCount + 1 
             else 
-                if entry.seg._sessionID then
-                    CT._deletedSessionIDs = CT._deletedSessionIDs or {}
-                    CT._deletedSessionIDs[entry.seg._sessionID] = true
+                if entry.seg._sessionID and ns.db then
+                    ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
+                    ns.db.deletedSessionIDs[entry.seg._sessionID] = true
                 end
                 table.insert(indicesToRemove, entry.idx) 
             end

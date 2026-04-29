@@ -114,9 +114,9 @@ function HL:Build()
                     table.insert(cleaned, seg) 
                 else
                     -- 记录被删的 sessionID,防止下次扫描复活
-                    if seg._sessionID and ns.CombatTracker then
-                        ns.CombatTracker._deletedSessionIDs = ns.CombatTracker._deletedSessionIDs or {}
-                        ns.CombatTracker._deletedSessionIDs[seg._sessionID] = true
+                    if seg._sessionID and ns.db then
+                        ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
+                        ns.db.deletedSessionIDs[seg._sessionID] = true
                     end
                 end
             end
@@ -339,9 +339,9 @@ function HL:MakeItem(parent)
         if data.key == "history" and data.index then
             -- 0. 记录被删的 sessionID,防止下次扫描复活
             local deletingSeg = ns.Segments.history[data.index]
-            if deletingSeg and deletingSeg._sessionID and ns.CombatTracker then
-                ns.CombatTracker._deletedSessionIDs = ns.CombatTracker._deletedSessionIDs or {}
-                ns.CombatTracker._deletedSessionIDs[deletingSeg._sessionID] = true
+            if deletingSeg and deletingSeg._sessionID and ns.db then
+                ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
+                ns.db.deletedSessionIDs[deletingSeg._sessionID] = true
             end
 
             -- 1. 修正 viewIndex 偏移（核心保护机制，防止底层渲染空指针）
@@ -368,11 +368,9 @@ function HL:MakeItem(parent)
         end
     end)
 
-    -- 原有的行点击逻辑（切换段落）
+    
     f:SetScript("OnClick", function()
         local data = item.data; if not data then return end
-        local isLocked = ns.Segments and ns.Segments._locked
-        if isLocked and data.key == "history" then return end
         if ns.Segments then ns.Segments:SetViewByKey(data.key, data.index) end
         self:Hide()
     end)

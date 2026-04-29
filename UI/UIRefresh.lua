@@ -157,7 +157,7 @@ end
 function UI:RefreshTitle()
     if not self.frame or not self.frame:IsShown() then return end; if not self.titleText then return end
     local segL = ns.Segments and ns.Segments:GetViewLabel() or L["无数据"]
-    local dot = ns.state.inCombat and L["|cff00ff00[战]|r "] or ""
+    local dot = ""
     local dur = 0
     if ns.state.inCombat and ns.state.combatStartTime and ns.state.combatStartTime > 0 then
         local isViewingOverall = ns.Segments and ns.Segments.viewIndex == 0

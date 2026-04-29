@@ -394,8 +394,11 @@ function Segments:GetHistoryList()
     local list = {}
 
     -- 1. 历史记录：最旧的在最上面，最新的紧挨着“当前”
-    -- 假设 self.history[1] 是最新，所以我们从最大的索引倒着遍历
-    for i = #self.history, 1, -1 do
+    local maxSeg = ns.db and ns.db.tracking and ns.db.tracking.maxSegments or 30
+    local limit = math.min(#self.history, maxSeg)
+
+    -- 从 limit 开始倒着遍历（不展示 limit 之后隐藏的记录）
+    for i = limit, 1, -1 do
         local seg = self.history[i]
         local label
         if seg.type == "mythicplus" then

@@ -221,7 +221,6 @@ function ns:LoadSessionHistory()
     if not ns.db.savedHistory or #ns.db.savedHistory == 0 then return end
     ns.Segments.history = {}
     for _, seg in ipairs(ns.db.savedHistory) do
-        seg._sessionID = nil
         seg._dataLoaded = true
         table.insert(ns.Segments.history, seg)
     end
