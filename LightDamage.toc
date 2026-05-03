@@ -3,7 +3,7 @@
 ## Notes: Combat Statistics
 ## Notes-zhCN: 战斗统计插件
 ## Author: Yishi
-## Version: 1.4.0
+## Version: 1.4.1
 ## SavedVariables: LightDamageGlobal
 ## SavedVariablesPerCharacter: LightDamageDB
 ## Category: Combat
