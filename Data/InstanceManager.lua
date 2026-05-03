@@ -104,15 +104,10 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
             local indicesToRemove, bossCount = {}, 0
             if doCleanTrash then
                 for _, entry in ipairs(instSegs) do
-                    if entry.seg._isBoss then 
-                        bossCount = bossCount + 1 
-                    else 
-                        -- 记录被删的 sessionID,防止下次扫描复活
-                        if entry.seg._sessionID and ns.db then
-                            ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
-                            ns.db.deletedSessionIDs[entry.seg._sessionID] = true
-                        end
-                        table.insert(indicesToRemove, entry.idx) 
+                    if entry.seg._isBoss then
+                        bossCount = bossCount + 1
+                    else
+                        table.insert(indicesToRemove, entry.idx)
                     end
                 end
                 table.sort(indicesToRemove, function(a, b) return a > b end)
@@ -206,18 +201,14 @@ function ns.CombatTracker:MergeAndCleanInstance(instanceTag, mythicLevel, mythic
         merged.duration = (CT._overallDurationSnapshot and CT._overallDurationSnapshot > 0) and CT._overallDurationSnapshot or totalDur
     end
 
-    -- 收尾：删掉小怪，保留 Boss
+    -- 收尾:删掉小怪,保留 Boss
     local indicesToRemove, bossCount = {}, 0
     if doCleanTrash then
         for _, entry in ipairs(instSegs) do
-            if entry.seg._isBoss then 
-                bossCount = bossCount + 1 
-            else 
-                if entry.seg._sessionID and ns.db then
-                    ns.db.deletedSessionIDs = ns.db.deletedSessionIDs or {}
-                    ns.db.deletedSessionIDs[entry.seg._sessionID] = true
-                end
-                table.insert(indicesToRemove, entry.idx) 
+            if entry.seg._isBoss then
+                bossCount = bossCount + 1
+            else
+                table.insert(indicesToRemove, entry.idx)
             end
         end
         table.sort(indicesToRemove, function(a, b) return a > b end)

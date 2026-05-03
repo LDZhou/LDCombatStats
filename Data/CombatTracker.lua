@@ -119,17 +119,9 @@ local function processArchivedSessions()
     local sessionCount = sessions and #sessions or 0
     if sessionCount == 0 then return end
 
-    -- 1. 建立 history 中已有 sessionID 的索引
-    local existingSessionIDs = {}
-    for _, seg in ipairs(segs.history) do
-        if seg._sessionID then
-            existingSessionIDs[seg._sessionID] = true
-        end
-    end
-
-    -- 2. 遍历 API 返回的 session,缺什么补什么
+    -- 单调推进:从上次水位线之后的 session 开始扫,不需要去重表也不需要黑名单
     local addedAny = false
-    for i = (CT._baselineSessionCount or 0) + 1, sessionCount do
+    for i = (CT._lastProcessedCount or 0) + 1, sessionCount do
         local s = sessions[i]
         if not s then break end
         local sid = s.sessionID
@@ -137,10 +129,6 @@ local function processArchivedSessions()
 
         if dur <= 0 then
             -- 0 时长 session(尚未稳定),跳过,下次扫描再处理
-        elseif existingSessionIDs[sid] then
-            -- 已存在,跳过(幂等核心)
-        elseif ns.db and ns.db.deletedSessionIDs and ns.db.deletedSessionIDs[sid] then
-            -- 用户主动删过,不要复活（重载界面也不会复活）
         elseif dur < (ns.db and ns.db.tracking and ns.db.tracking.minCombatTime or 2) then
             -- 时长不足,跳过
         else
@@ -161,7 +149,6 @@ local function processArchivedSessions()
             seg.duration = dur
             seg.endTime = GetTime()
             seg.startTime = GetTime() - dur
-            seg._realTime = time() - math.floor(dur)
             seg._isBoss = isBoss
             seg._instanceTag = instanceTag
             seg._instanceDisplayName = CT._currentInstanceName or nil
@@ -235,34 +222,26 @@ local function processArchivedSessions()
             end
 
             table.insert(segs.history, 1, seg)
-            existingSessionIDs[sid] = true
             addedAny = true
+
+            -- 0 数据段:启动 10 秒兜底扫描
+            if not seg._dataLoaded then
+                local segRef = seg
+                C_Timer.After(10, function()
+                    if not segRef._dataLoaded
+                       and segRef._sessionID
+                       and (segRef.totalDamage or 0) == 0 then
+                        CT:LoadSegmentData(segRef)
+                        if ns.Analysis then ns.Analysis:InvalidateCache() end
+                        if ns.UI and ns.UI:IsVisible() then ns.UI:Refresh() end
+                    end
+                end)
+            end
         end
     end
 
-    -- 3. 收尾
+    -- 收尾
     if addedAny then
-        -- 使用绝对时间戳进行排序
-        table.sort(segs.history, function(a, b)
-            local tA = a._realTime or 0
-            local tB = b._realTime or 0
-            
-            -- 1. 优先按绝对时间倒序（最新的战斗永远在最前）
-            if tA ~= tB then
-                return tA > tB
-            end
-            
-            -- 2. 如果现实时间恰好一模一样（比如极短时间内人工合并的段落），用暴雪的 sessionID 兜底
-            local idA = a._sessionID or 0
-            local idB = b._sessionID or 0
-            if idA ~= idB then
-                return idA > idB
-            end
-            
-            -- 3. 如果连 ID 都一样，用游戏内部运行时间兜底
-            return (a.startTime or 0) > (b.startTime or 0)
-        end)
-
         if ns.SaveSessionHistory then ns:SaveSessionHistory() end
     end
     CT._lastProcessedCount = sessionCount
@@ -289,22 +268,12 @@ local function waitAndProcessArchived(fastPath)
 
     waitAttempts = 0
 
-    local function buildExistingSet()
-        local existing = {}
-        for _, seg in ipairs(ns.Segments.history) do
-            if seg._sessionID then existing[seg._sessionID] = true end
-        end
-        return existing
-    end
-
     local function anyUnprocessedStillSecret()
         local sessions = C_DamageMeter.GetAvailableCombatSessions()
         local count    = sessions and #sessions or 0
-        local existing = buildExistingSet()
-        for i = (CT._baselineSessionCount or 0) + 1, count do
+        for i = (CT._lastProcessedCount or 0) + 1, count do
             local s = sessions[i]
-            if s and not existing[s.sessionID]
-               and not (CT._deletedSessionIDs and CT._deletedSessionIDs[s.sessionID]) then
+            if s then
                 if isSessionStillSecret(s.sessionID) then return true end
                 if (s.durationSeconds or 0) == 0 then return true end
             end
@@ -408,14 +377,12 @@ function CT:ResetMeterForNewRun()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then CT._internalReset = true; C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true; CT._bossSessionIndices = {}
-    if ns.db then ns.db.deletedSessionIDs = {} end
     if ns.MythicPlus then ns.MythicPlus:ResetBaseline() end
 end
 function CT:MarkReset()
     self:ClearLoadedSessionIDs()
     if C_DamageMeter.ResetAllCombatSessions then C_DamageMeter.ResetAllCombatSessions() end
     CT._baselineSessionCount = 0; CT._lastProcessedCount = 0; CT._initialBaselineSet = true
-    if ns.db then ns.db.deletedSessionIDs = {} end
 end
 function CT:SetBaseline()
     local sessions = C_DamageMeter.GetAvailableCombatSessions()
@@ -424,7 +391,6 @@ end
 function CT:ResetBaselineToCurrentCount()
     local sessions = C_DamageMeter.GetAvailableCombatSessions(); local count = sessions and #sessions or 0
     CT._baselineSessionCount = count; CT._lastProcessedCount = count; CT._initialBaselineSet = true; CT._bossSessionIndices = {}
-    CT._deletedSessionIDs = {}  -- 清黑名单
 end
 function CT:PullCurrentData()
     if ns.Config and ns.Config._pvRefreshBlocked then return end
@@ -459,6 +425,8 @@ function CT:RegisterEvents()
             if not ns.state.inCombat and not isGroupInCombat() then
                 C_Timer.After(0, function() waitAndProcessArchived(true) end)
             end
+            -- 顺手把 history 里的 0 数据段补上(secret 解密事件)
+            CT:RescanZeroDataSegments()
             return
         end
         if event == "ENCOUNTER_START" then
@@ -588,6 +556,30 @@ function CT:RegisterEvents()
         CT._bossSessionIndices = {}
     end
 end
+
+-- ============================================================
+-- 事件驱动重读:扫 history,把 0 数据段填上真实数据
+-- ============================================================
+function CT:RescanZeroDataSegments()
+    local segs = ns.Segments
+    if not segs or not segs.history then return end
+    local refreshed = false
+    for _, seg in ipairs(segs.history) do
+        if seg._sessionID
+           and not seg._isMerged
+           and not seg._preKeystone
+           and (not seg._dataLoaded or (seg.totalDamage or 0) == 0) then
+            self:LoadSegmentData(seg)
+            if seg._dataLoaded then refreshed = true end
+        end
+    end
+    if refreshed then
+        if ns.Analysis then ns.Analysis:InvalidateCache() end
+        if ns.UI and ns.UI:IsVisible() then ns.UI:Refresh() end
+        if ns.SaveSessionHistory then ns:SaveSessionHistory() end
+    end
+end
+
 
 function CT:ScanArchivedSessions()
     if self._scanInProgress then return end
