@@ -422,10 +422,8 @@ function CT:RegisterEvents()
             return
         end
         if event == "DAMAGE_METER_COMBAT_SESSION_UPDATED" then
-            if not ns.state.inCombat and not isGroupInCombat() then
-                C_Timer.After(0, function() waitAndProcessArchived(true) end)
-            end
-            -- 顺手把 history 里的 0 数据段补上(secret 解密事件)
+            if ns.state.inCombat or isGroupInCombat() then return end
+            C_Timer.After(0, function() waitAndProcessArchived(true) end)
             CT:RescanZeroDataSegments()
             return
         end
