@@ -498,7 +498,7 @@ function DV:RenderSpellList(name, class, mode, spells, dur, titleSuffix, apiMaxA
         if sp.secretAmt then
             r.value:SetText(valStr)
         else
-            local pctStr = string.format("%.0f%%", sp.percent or 0)
+            local pctStr = string.format("%.1f%%", sp.percent or 0)
             r.value:SetText(valStr .. " |cffaaaaaa" .. pctStr .. "|r")
         end
 

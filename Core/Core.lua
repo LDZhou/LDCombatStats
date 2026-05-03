@@ -75,6 +75,7 @@ ns.defaults = {
         showPercent   = true,
         showRank      = true,
         showSpecIcon  = true,
+        iconPack      = "default",
         showRealm     = false,
         classColors   = true,
         barHeight     = 19,

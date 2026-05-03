@@ -210,6 +210,12 @@ function Config:BuildLookPage()
     y = self:Slider(inner, L["[设置]界面缩放"], y, 0.5, 2.0, 0.05, function() return ns.db.window.configScale or 1.0 end, function(v) ns.db.window.configScale = v; if self.panel then self.panel:SetScale(v) end; if self._pvSwitcher then self._pvSwitcher:SetScale(v) end end)
     y = self:Check(inner, L["锁定窗口位置"], y, function() return ns.db.window.locked end, function(v) ns.db.window.locked = v; if ns.UI and ns.UI.UpdateLockState then ns.UI:UpdateLockState() end end)
 
+    y = y - 12; y = self:H(inner, L["图标风格"], y)
+    y = self:Dropdown(inner, L["专精图标"], y,
+        { {l=L["默认"], v="default"}, {l="Apex", v="apex"}, {l="Cartoon", v="cartoon"}, {l="ToxiUI", v="toxiui"} },
+        function() return ns.db.display.iconPack or "default" end,
+        function(v) ns.db.display.iconPack = v; self:RefreshUI() end)
+
     y = y - 12; y = self:H(inner, L["界面颜色"], y)
     y = self:ColorSwatch(inner, L["标题栏/页签主题色"], y, function() local c = ns.db.window.themeColor or {0.08, 0.08, 0.12, 1}; return c[1], c[2], c[3], c[4] end, function(r, g, b, a) ns.db.window.themeColor = {r, g, b, a}; if ns.UI and ns.UI.ApplyTheme then ns.UI:ApplyTheme() end end)
     y = self:ColorSwatch(inner, L["数据区背景色"], y, function() local c = ns.db.window.bgColor or {0.04, 0.04, 0.05, 0.90}; return c[1], c[2], c[3], c[4] end, function(r, g, b, a) ns.db.window.bgColor = {r, g, b, a}; if ns.UI and ns.UI.ApplyTheme then ns.UI:ApplyTheme() end end)

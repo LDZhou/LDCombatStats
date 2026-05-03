@@ -17,6 +17,34 @@ ns.CLASS_COLORS = {
     EVOKER      = {0.20, 0.58, 0.50},
 }
 
+-- 暴雪职业图标 (回退用)
+ns.CLASS_ICONS = {
+    WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320,
+    PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932,
+    WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827,
+    EVOKER=4567212,
+}
+
+-- 自定义图标包: specID → 文件名 stem
+ns.SPEC_ICON_KEYS = {
+    [62]="Mage_TouchOfTheArchmage", [63]="Mage_FiredUp", [64]="Mage_HandOfFrost",
+    [65]="Paladin_BeaconOfTheSavior", [66]="Paladin_GloryOfTheVanguard", [70]="Paladin_LightWithin",
+    [71]="Warrior_MasterOfWarfare", [72]="Warrior_RampagingBerserker", [73]="Warrior_Phalanx",
+    [102]="Druid_AscendanceEclipses", [103]="Druid_UnseenPredator", [104]="Druid_WildGuardian", [105]="Druid_Everbloom",
+    [250]="DeathKnight_DanceOfMidnight", [251]="DeathKnight_ChosenOfTheFrostbrood", [252]="DeathKnight_ForbiddenKnowledge",
+    [253]="Hunter_KillFrenzy", [254]="Hunter_DeadlyInsight", [255]="Hunter_RaptorSwipe",
+    [256]="Priest_VoidShield", [257]="Priest_Benediction", [258]="Priest_VoidApparitions",
+    [259]="Rogue_AncientArts", [260]="Rogue_Gravedigger", [261]="Rogue_Implacable",
+    [262]="Shaman_FeedbackLoop", [263]="Shaman_StormUnleashed", [264]="Shaman_StormstreamTotem",
+    [265]="Warlock_ShadowsOfNathreza", [266]="Warlock_DominionOfArgus", [267]="Warlock_EmbersOfNihilam",
+    [268]="Monk_BringMeAnother", [269]="Monk_TigereyeBrew", [270]="Monk_Spiritfont",
+    [577]="DemonHunter_EternalHunt", [581]="DemonHunter_UntetheredRage", [1480]="DemonHunter_Midnight",
+    [1467]="Evoker_RisingFury", [1468]="Evoker_MerithrasBlessing", [1473]="Evoker_Duplicate",
+}
+
+-- 自定义图标包路径前缀
+local ICON_ROOT = "Interface\\AddOns\\LightDamage\\Textures\\icons\\"
+
 -- NPC GUID 判断（用于区分玩家与生物，避免 NPC 被误染战士色）
 -- 用首字节快速过滤，避免 4 次 string.match 调用
 local NPC_GUID_PREFIX_BYTES = {
@@ -45,6 +73,30 @@ end
 function ns:GetClassHex(class)
     local c = ns:GetClassColor(class)
     return string.format("|cff%02x%02x%02x", c[1]*255, c[2]*255, c[3]*255)
+end
+
+-- 统一图标查询: 根据当前图标包返回 specID 对应的图标
+-- 返回 nil 表示完全无图标 (调用者应自行决定是否显示职业图标兜底)
+function ns:GetSpecIcon(specID, class)
+    local pack = (ns.db and ns.db.display and ns.db.display.iconPack) or "default"
+
+    if pack == "default" then
+        -- 暴雪原生路径: specID -> 专精图标, 否则职业图标
+        if specID then
+            local _, _, _, icon = GetSpecializationInfoByID(specID)
+            if icon then return icon end
+        end
+        return class and ns.CLASS_ICONS[class] or nil
+    end
+
+    -- 自定义图标包: specID -> tga, 失败则职业图标兜底
+    if specID then
+        local stem = ns.SPEC_ICON_KEYS[specID]
+        if stem then
+            return ICON_ROOT .. pack .. "\\" .. stem
+        end
+    end
+    return class and ns.CLASS_ICONS[class] or nil
 end
 
 -- 学校颜色 (伤害类型)

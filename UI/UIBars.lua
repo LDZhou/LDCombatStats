@@ -8,7 +8,6 @@ local UI = ns.UI
 local MAX_BARS = UI.MAX_BARS
 local COUNT_MODES = UI.COUNT_MODES
 local MODE_TO_DM = UI.MODE_TO_DM
-local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 local INTERP = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut
 
 -- module-level helper：用于 pcall 调用而不创建闭包
@@ -144,11 +143,9 @@ function UI:FillBars(bars, listObj, data, dur, mode)
                     else local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[d.guid] or {}; specID = specID or cache.specID end
                     if d and specID then d.specID = specID end
                 end
-                local icon = nil
-                if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
-                if not icon and d.specIconID and d.specIconID > 0 then icon = d.specIconID end  -- ★ 新增
+                local icon = ns:GetSpecIcon(specID, bar._classStr)
+                if (ns.db.display.iconPack or "default") == "default" and not icon and d.specIconID and d.specIconID > 0 then icon = d.specIconID end
                 if d._isEnemy then icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" end
-                if not icon and bar._classStr then icon = CLASS_ICONS[bar._classStr] end
                 if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
             end
             bar.value:SetText(self:MakeValueStr(d.value, dur, mode, d.perSec, d.percent))
@@ -233,11 +230,9 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
             end
             bar._apiData.specID = specID; bar._apiData.ilvl = ilvl; bar._apiData.score = score
             if bar.specIcon then
-                local icon = nil
-                if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
-                if not icon then icon = src.specIconID end
+                local icon = ns:GetSpecIcon(specID, cls)
+                if (ns.db.display.iconPack or "default") == "default" and not icon then icon = src.specIconID end
                 if bar._mode == "enemyDamageTaken" then icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" end
-                if not icon and cls then icon = CLASS_ICONS[cls] end
                 if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
             end
             bar.frame:Show()
@@ -295,11 +290,11 @@ function UI:FillDeathBars(seg, bars, listObj)
                 if d.killerName and d.killerName ~= "" and d.killerName ~= "?" then killStr = killStr .. " |cff888888by |r|cffcccccc" .. ns:DisplayName(d.killerName) .. "|r" end
                 bar.value:SetText(killStr)
                 if bar.specIcon then
-                    local icon, specID = nil, nil; local guid = d.playerGUID
-                    local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[guid] or {}; specID = cache.specID
+                    local guid = d.playerGUID
+                    local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[guid] or {}
+                    local specID = cache.specID
                     if guid == ns.state.playerGUID then local specIdx = GetSpecialization(); if specIdx then specID = GetSpecializationInfo(specIdx) end end
-                    if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
-                    if not icon and d.playerClass then icon = CLASS_ICONS[d.playerClass] end
+                    local icon = ns:GetSpecIcon(specID, d.playerClass)
                     if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
                 end
             end

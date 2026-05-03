@@ -5,7 +5,6 @@
 local addonName, ns = ...
 local L = ns.L
 local UI = ns.UI
-local CLASS_ICONS = { WARRIOR=132355, PALADIN=135490, HUNTER=132222, ROGUE=132320, PRIEST=135940, DEATHKNIGHT=135771, SHAMAN=135962, MAGE=135932, WARLOCK=136145, MONK=608951, DRUID=132115, DEMONHUNTER=1260827, EVOKER=4567212 }
 local INTERP = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut
 
 -- module-level helper：用于 pcall 调用而不创建闭包
@@ -81,14 +80,12 @@ function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV, pos
             local idx = GetSpecialization()
             if idx then specID = GetSpecializationInfo(idx) end
         end
-        local icon = nil
-        if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
-        if not icon and d.class then icon = CLASS_ICONS[d.class] end
-        if ns.db.display.showSpecIcon and icon then 
+        local icon = ns:GetSpecIcon(specID, d.class)
+        if ns.db.display.showSpecIcon and icon then
             pinnedBar.specIcon:SetTexture(icon)
-            pinnedBar.specIcon:Show() 
-        else 
-            pinnedBar.specIcon:Hide() 
+            pinnedBar.specIcon:Show()
+        else
+            pinnedBar.specIcon:Hide()
         end
     end
     pinnedBar.frame:Show()
@@ -134,9 +131,9 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     pinnedBar._apiData.isLocalPlayer = true; pinnedBar._apiData.totalAmount = src.totalAmount; pinnedBar._apiData.amountPerSecond = src.amountPerSecond; pinnedBar._apiData.sessionType = sType
     pinnedBar._data = pinnedBar._apiData; pinnedBar._mode = mode; pinnedBar._isDeath = false; pinnedBar._guid = src.sourceGUID; pinnedBar._nameStr = src.name; pinnedBar._classStr = cls
     if pinnedBar.specIcon then
-        local specIdx = GetSpecialization(); local specID = specIdx and GetSpecializationInfo(specIdx) or nil; local icon = nil
-        if specID then _, _, _, icon = GetSpecializationInfoByID(specID) end
-        if not icon and cls then icon = CLASS_ICONS[cls] end
+        local specIdx = GetSpecialization()
+        local specID = specIdx and GetSpecializationInfo(specIdx) or nil
+        local icon = ns:GetSpecIcon(specID, cls)
         if ns.db.display.showSpecIcon and icon then pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show() else pinnedBar.specIcon:Hide() end
     end
     pinnedBar.frame:Show()
