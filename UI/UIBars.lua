@@ -138,9 +138,14 @@ function UI:FillBars(bars, listObj, data, dur, mode)
             if bar.specIcon then
                 local specID = d and d.specID
                 local seg = ns.Segments and ns.Segments:GetViewSegment()
-                if seg and seg.isActive then
-                    if d.guid == ns.state.playerGUID then local specIdx = GetSpecialization(); if specIdx then specID = GetSpecializationInfo(specIdx) end
-                    else local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[d.guid] or {}; specID = specID or cache.specID end
+                if seg and (seg.isActive or seg.type == "overall") then
+                    if d.guid == ns.state.playerGUID then
+                        local specIdx = GetSpecialization()
+                        if specIdx then specID = GetSpecializationInfo(specIdx) end
+                    else
+                        local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[d.guid]
+                        specID = (cache and cache.specID) or specID
+                    end
                     if d and specID then d.specID = specID end
                 end
                 local icon = ns:GetSpecIcon(specID, bar._classStr)

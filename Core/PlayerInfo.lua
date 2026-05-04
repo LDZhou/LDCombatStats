@@ -28,7 +28,7 @@ inspectScanner:SetScript("OnUpdate", function(self, elapsed)
             if UnitExists(unit) and UnitIsConnected(unit) and UnitIsPlayer(unit) then
                 local guid = UnitGUID(unit)
                 if guid then
-                    ns.PlayerInfoCache[guid] = ns.PlayerInfoCache[guid] or { score = 0, ilvl = 0, specID = nil }
+                    ns.PlayerInfoCache[guid] = ns.PlayerInfoCache[guid] or { score = 0, ilvl = 0, specID = nil, lastInspect = 0 }
                     local c = ns.PlayerInfoCache[guid]
 
                     -- 1. 获取大秘境评分 (不需要 Inspect)
@@ -46,7 +46,8 @@ inspectScanner:SetScript("OnUpdate", function(self, elapsed)
                         local _, equipped = GetAverageItemLevel()
                         c.ilvl = math.floor(equipped or 0)
                     else
-                        if not c.specID and CanInspect(unit) and (GetTime() - (self.lastInspect or 0) > 2) then
+                        local needsInspect = (not c.specID) or ((GetTime() - (c.lastInspect or 0)) > 30)
+                        if needsInspect and CanInspect(unit) and (GetTime() - (self.lastInspect or 0) > 2) then
                             self.lastInspect = GetTime()
                             currentInspectUnit = unit
                             NotifyInspect(unit)
@@ -66,6 +67,7 @@ inspectScanner:SetScript("OnEvent", function(self, event, guid)
             c.specID = GetInspectSpecialization(currentInspectUnit)
             local ilvl = C_PaperDollInfo.GetInspectItemLevel(currentInspectUnit)
             if ilvl then c.ilvl = math.floor(ilvl) end
+            c.lastInspect = GetTime()
         end
         ClearInspectPlayer()
         currentInspectUnit = nil
