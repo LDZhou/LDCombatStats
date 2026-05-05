@@ -75,12 +75,11 @@ function UI:FillPinnedFromData(pinnedBar, listObj, d, rank, dur, mode, maxV, pos
     pinnedBar._data = d; pinnedBar._mode = mode; pinnedBar._isDeath = false; pinnedBar._guid = d.guid; pinnedBar._nameStr = d.name; pinnedBar._classStr = d.class
     if pinnedBar.specIcon then
         local specID = d.specID
-        local seg = ns.Segments and ns.Segments:GetViewSegment()
-        if seg and seg.isActive and d.guid == ns.state.playerGUID then
+        if d.guid == ns.state.playerGUID then
             local idx = GetSpecialization()
             if idx then specID = GetSpecializationInfo(idx) end
         end
-        local icon = ns:GetSpecIcon(specID, d.class)
+        local icon = ns:GetSpecIcon(specID, d.class, d.specIconID)
         if ns.db.display.showSpecIcon and icon then
             pinnedBar.specIcon:SetTexture(icon)
             pinnedBar.specIcon:Show()
@@ -133,7 +132,7 @@ function UI:FillPinnedFromAPI(pinnedBar, listObj, src, rank, mode, maxAmt, sType
     if pinnedBar.specIcon then
         local specIdx = GetSpecialization()
         local specID = specIdx and GetSpecializationInfo(specIdx) or nil
-        local icon = ns:GetSpecIcon(specID, cls)
+        local icon = ns:GetSpecIcon(specID, cls, src.specIconID)
         if ns.db.display.showSpecIcon and icon then pinnedBar.specIcon:SetTexture(icon); pinnedBar.specIcon:Show() else pinnedBar.specIcon:Hide() end
     end
     pinnedBar.frame:Show()

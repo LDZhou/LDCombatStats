@@ -77,11 +77,13 @@ end
 
 -- 统一图标查询: 根据当前图标包返回 specID 对应的图标
 -- 返回 nil 表示完全无图标 (调用者应自行决定是否显示职业图标兜底)
-function ns:GetSpecIcon(specID, class)
+function ns:GetSpecIcon(specID, class, specIconID)
     local pack = (ns.db and ns.db.display and ns.db.display.iconPack) or "default"
 
     if pack == "default" then
-        -- 暴雪原生路径: specID -> 专精图标, 否则职业图标
+        -- ★ 优先用 API 直接给的图标值 (队友自己都靠这个, 零延迟、不需要 inspect)
+        if specIconID and specIconID > 0 then return specIconID end
+        -- 没拿到 specIconID 时再走 specID 路径 (主要给本地玩家自己用)
         if specID then
             local _, _, _, icon = GetSpecializationInfoByID(specID)
             if icon then return icon end
@@ -89,14 +91,43 @@ function ns:GetSpecIcon(specID, class)
         return class and ns.CLASS_ICONS[class] or nil
     end
 
-    -- 自定义图标包: specID -> tga, 失败则职业图标兜底
+    -- 自定义图标包: specID -> tga 文件名映射
+    -- specID 缺失时, 用 specIconID 反查 specID
+    if not specID and specIconID and specIconID > 0 and ns.ICON_TO_SPECID then
+        specID = ns.ICON_TO_SPECID[specIconID]
+    end
     if specID then
         local stem = ns.SPEC_ICON_KEYS[specID]
         if stem then
             return ICON_ROOT .. pack .. "\\" .. stem
         end
     end
+    -- ★ 自定义包匹配失败时, 用 API 给的 specIconID 作二级兜底 (起码能看到一个图标)
+    if specIconID and specIconID > 0 then return specIconID end
     return class and ns.CLASS_ICONS[class] or nil
+end
+
+
+-- ============================================================
+-- 一次性建立 specIconID -> specID 反查表
+-- 用于自定义图标包: 当 API 只返回 specIconID 时反查 specID
+-- 在 PLAYER_LOGIN 后调用一次即可, 数据不会变
+-- ============================================================
+function ns:BuildIconToSpecIDMap()
+    if ns.ICON_TO_SPECID then return end
+    ns.ICON_TO_SPECID = {}
+    if not GetNumClasses or not GetNumSpecializationsForClassID or not GetSpecializationInfoForClassID then
+        return
+    end
+    for classID = 1, GetNumClasses() do
+        local n = GetNumSpecializationsForClassID(classID) or 0
+        for specIdx = 1, n do
+            local sid, _, _, icon = GetSpecializationInfoForClassID(classID, specIdx)
+            if icon and sid then
+                ns.ICON_TO_SPECID[icon] = sid
+            end
+        end
+    end
 end
 
 -- 学校颜色 (伤害类型)

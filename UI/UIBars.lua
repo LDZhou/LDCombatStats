@@ -136,20 +136,15 @@ function UI:FillBars(bars, listObj, data, dur, mode)
                 bar.name:SetTextColor(nr, ng, nb)
             end
             if bar.specIcon then
+                -- 本地玩家自己用 GetSpecialization 拿实时 specID (切专精后立即生效)
+                -- 队友的 specID 通常拿不到 (不再 inspect), 靠 d.specIconID 走自动路径
                 local specID = d and d.specID
-                local seg = ns.Segments and ns.Segments:GetViewSegment()
-                if seg and (seg.isActive or seg.type == "overall") then
-                    if d.guid == ns.state.playerGUID then
-                        local specIdx = GetSpecialization()
-                        if specIdx then specID = GetSpecializationInfo(specIdx) end
-                    else
-                        local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[d.guid]
-                        specID = (cache and cache.specID) or specID
-                    end
-                    if d and specID then d.specID = specID end
+                if d.guid == ns.state.playerGUID then
+                    local specIdx = GetSpecialization()
+                    if specIdx then specID = GetSpecializationInfo(specIdx) end
+                    if d then d.specID = specID end
                 end
-                local icon = ns:GetSpecIcon(specID, bar._classStr)
-                if (ns.db.display.iconPack or "default") == "default" and not icon and d.specIconID and d.specIconID > 0 then icon = d.specIconID end
+                local icon = ns:GetSpecIcon(specID, bar._classStr, d.specIconID)
                 if d._isEnemy then icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" end
                 if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
             end
@@ -235,8 +230,8 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
             end
             bar._apiData.specID = specID; bar._apiData.ilvl = ilvl; bar._apiData.score = score
             if bar.specIcon then
-                local icon = ns:GetSpecIcon(specID, cls)
-                if (ns.db.display.iconPack or "default") == "default" and not icon then icon = src.specIconID end
+                -- API 已直接给了 specIconID, 让 GetSpecIcon 自己挑路径
+                local icon = ns:GetSpecIcon(specID, cls, src.specIconID)
                 if bar._mode == "enemyDamageTaken" then icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" end
                 if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
             end
@@ -296,10 +291,12 @@ function UI:FillDeathBars(seg, bars, listObj)
                 bar.value:SetText(killStr)
                 if bar.specIcon then
                     local guid = d.playerGUID
-                    local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[guid] or {}
-                    local specID = cache.specID
-                    if guid == ns.state.playerGUID then local specIdx = GetSpecialization(); if specIdx then specID = GetSpecializationInfo(specIdx) end end
-                    local icon = ns:GetSpecIcon(specID, d.playerClass)
+                    local specID = nil
+                    if guid == ns.state.playerGUID then
+                        local specIdx = GetSpecialization()
+                        if specIdx then specID = GetSpecializationInfo(specIdx) end
+                    end
+                    local icon = ns:GetSpecIcon(specID, d.playerClass, d._specIconID)
                     if ns.db.display.showSpecIcon and icon then bar.specIcon:SetTexture(icon); bar.specIcon:Show() else bar.specIcon:Hide() end
                 end
             end

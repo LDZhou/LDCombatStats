@@ -263,6 +263,8 @@ function Core:OnInitialize()
         ns.state.playerClass = classEng
         ns.state.damageTakenView = ns.db.display.damageTakenView or "friendly"
 
+        ns:BuildIconToSpecIDMap()
+
         if ns.Segments then
             ns.Segments:Init()
             ns:LoadSessionHistory()
