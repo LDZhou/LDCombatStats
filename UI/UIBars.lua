@@ -229,6 +229,8 @@ function UI:FillBarsFromAPI(bars, listObj, mode, sessionType)
                 specID = cache.specID; ilvl = cache.ilvl or 0; score = cache.score or 0
             end
             bar._apiData.specID = specID; bar._apiData.ilvl = ilvl; bar._apiData.score = score
+            bar._apiData.specIconID = src.specIconID
+            
             if bar.specIcon then
                 -- API 已直接给了 specIconID, 让 GetSpecIcon 自己挑路径
                 local icon = ns:GetSpecIcon(specID, cls, src.specIconID)

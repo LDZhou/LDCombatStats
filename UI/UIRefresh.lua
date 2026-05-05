@@ -276,8 +276,20 @@ function UI:ShowTooltip(bar, section)
         if d then d.specID = specID; d.ilvl = ilvl; d.score = score end
     else specID = d and d.specID; ilvl = d and d.ilvl or 0; score = d and d.score or 0 end
 
-    local specName = ""; if specID then local _, name = GetSpecializationInfoByID(specID); if name then specName = name end end
-
+    local specName = ""
+    if specID then
+        local _, name = GetSpecializationInfoByID(specID)
+        if name then specName = name end
+    end
+    -- 兜底:用 specIconID 反查 (队友未 inspect 时也能拿到名字)
+    if specName == "" and d and d.specIconID and d.specIconID > 0 and ns.ICON_TO_SPECID then
+        local sid = ns.ICON_TO_SPECID[d.specIconID]
+        if sid then
+            local _, name = GetSpecializationInfoByID(sid)
+            if name then specName = name end
+        end
+    end
+    
     local function AddPlayerInfoLines()
         if specName ~= "" or (ilvl and ilvl > 0) or (score and score > 0) then
             GameTooltip:AddLine(" ")
