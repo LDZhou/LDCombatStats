@@ -78,20 +78,10 @@ function UI:Refresh()
     local isArchived = segs and segs:IsViewingArchived()
     local isCurrent = segs and segs:IsViewingCurrent()
 
-    -- ★ 看 current 但脱战:取 API 列表里最后一个 session 的 sessionID
-    local currentFallbackSID = nil
-    if isCurrent and not ns.state.inCombat then
-        local ok, list = pcall(C_DamageMeter.GetAvailableCombatSessions)
-        if ok and list and #list > 0 then
-            local last = list[#list]
-            currentFallbackSID = last and last.sessionID or nil
-        end
-    end
 
     -- 走 API 路径的判定
     local routeOverallAPI = isOverall and not forceDataMode
     local routeCurrentLive = isCurrent and ns.state.inCombat and not forceDataMode
-    local routeCurrentFallback = isCurrent and (not ns.state.inCombat) and currentFallbackSID and not forceDataMode
     local routeVirtual = isVirtual and not forceDataMode and seg and seg._sessionID
 
     if routeCurrentLive then
@@ -112,19 +102,6 @@ function UI:Refresh()
             if useOvr then self:FillOvrBars(isSplitView, sp, mode) end
         else
             self:RefreshHead(self.priHead, mode, nil, 0, sType); self:FillBarsFromAPI(self.priBars, self.priList, effMode(mode), sType)
-            if useOvr then self:FillOvrBars(isSplitView, sp, mode) end
-        end
-    elseif routeCurrentFallback then
-        -- ★ 脱战看 current:读 API 最后一个 session(刚结束那场)
-        local sid = currentFallbackSID
-        if isSplitView then
-            self:RefreshHead(self.priHead, sp.primaryMode, nil, 0, nil, sid); self:RefreshHead(self.secHead, sp.secondaryMode, nil, 0, nil, sid)
-            self:FillBarsFromAPI(self.priBars, self.priList, effMode(sp.primaryMode), nil, sid)
-            self:FillBarsFromAPI(self.secBars, self.secList, effMode(sp.secondaryMode), nil, sid)
-            if useOvr then self:FillOvrBars(isSplitView, sp, mode) end
-        else
-            self:RefreshHead(self.priHead, mode, nil, 0, nil, sid)
-            self:FillBarsFromAPI(self.priBars, self.priList, effMode(mode), nil, sid)
             if useOvr then self:FillOvrBars(isSplitView, sp, mode) end
         end
     elseif routeVirtual then

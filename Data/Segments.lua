@@ -159,6 +159,28 @@ function Segments:ViewVirtual(sessionID)
     self.viewIndex = { kind = "virtual", sessionID = sessionID }
 end
 
+-- ============================================================
+-- ★ 脱战时选择最新一条 HistoryList 里的战斗
+--   包括 archived / virtual，并且会自动尊重隐藏黑名单
+-- ============================================================
+function Segments:ViewLatestHistory()
+    local merged = self:GetMergedSegmentList()
+    local latest = merged and merged[1]
+
+    if latest then
+        if latest._isVirtual and latest._sessionID then
+            self:ViewVirtual(latest._sessionID)
+            return true
+        elseif latest._localID then
+            self:ViewArchived(latest._localID)
+            return true
+        end
+    end
+
+    self:ViewCurrent()
+    return false
+end
+
 function Segments:ResetAll()
     self:Init()
     self._preReloadOverallData = nil
@@ -256,14 +278,24 @@ function Segments:OnCombatEnd()
     self._locked = false
     self.current.isActive = false
     self.current.endTime  = GetTime()
-    -- ★ 写一下 duration，脱战后标题栏 RefreshTitle 才有时间显示
+
     if self.current.startTime and self.current.startTime > 0 then
         self.current.duration = self.current.endTime - self.current.startTime
     end
-    -- ★ 不再清空 self.current:脱战后底部"当前"行继续显示这场刚结束的战斗。
-    --   下一场战斗 OnCombatStart 时会被覆盖。
+
     if ns.DeathTracker then ns.DeathTracker:ClearBuffers() end
     if ns.Analysis then ns.Analysis:InvalidateCache() end
+
+    --   延迟一帧，让暴雪 API session 列表先稳定下来
+    C_Timer.After(0, function()
+        if not ns.state.inCombat and ns.Segments then
+            ns.Segments:ViewLatestHistory()
+            if ns.Analysis then ns.Analysis:InvalidateCache() end
+            if ns.UI and ns.UI:IsVisible() then
+                ns.UI:Refresh()
+            end
+        end
+    end)
 end
 
 function Segments:OnEncounterStart(encounterID, name, difficultyID, groupSize)
@@ -736,9 +768,9 @@ function Segments:HideSession(entry)
 
     -- 如果当前正在看这个段,自动跳走
     if entry.key == "virtual" and self:IsViewingVirtual() and self.viewIndex.sessionID == entry.sessionID then
-        self:ViewCurrent()
+        self:ViewLatestHistory()
     elseif entry.key == "archived" and self:IsViewingArchived() and self.viewIndex.localID == entry.localID then
-        self:ViewCurrent()
+        self:ViewLatestHistory()
     end
 
     if ns.Analysis then ns.Analysis:InvalidateCache() end

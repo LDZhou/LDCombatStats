@@ -259,6 +259,10 @@ local function processArchivedSessions()
     ns.state.lastCombatWasBoss = false
     CT._bossSessionIndices = CT._bossSessionIndices or {}
     CT:RebuildOverall(sessions, sessionCount)
+
+    if not ns.state.inCombat and segs.IsViewingCurrent and segs:IsViewingCurrent() then
+        segs:ViewLatestHistory()
+    end
 end
 
 -- ============================================================
