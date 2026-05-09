@@ -37,22 +37,67 @@ end
 
 function UI:MakeBar(parent, section, index)
     local bar = {}
+
     bar.frame = CreateFrame("Button", nil, parent)
-    bar.frame:SetHeight(18); bar.frame:RegisterForClicks("LeftButtonUp","RightButtonUp"); bar.frame:Hide()
-    bar.bg = bar.frame:CreateTexture(nil,"BACKGROUND"); bar.bg:SetAllPoints(); bar.bg:SetColorTexture(0.1, 0.1, 0.12, 0)
-    bar.fill = bar.frame:CreateTexture(nil,"BORDER"); bar.fill:SetPoint("TOPLEFT"); bar.fill:SetPoint("BOTTOMLEFT")
-    bar.fill:SetTexture("Interface\\Buttons\\WHITE8X8"); bar.fill:SetWidth(1)
+    bar.frame:SetHeight(18)
+    bar.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    bar.frame:Hide()
+
+    -- ★ 最底层：背景
+    bar.bg = bar.frame:CreateTexture(nil, "BACKGROUND", nil, 0)
+    bar.bg:SetAllPoints()
+    bar.bg:SetColorTexture(0.1, 0.1, 0.12, 0)
+
+    -- ★ 底层：旧 fill 备用，死亡条/分隔条还会用它
+    bar.fill = bar.frame:CreateTexture(nil, "BORDER", nil, 0)
+    bar.fill:SetPoint("TOPLEFT")
+    bar.fill:SetPoint("BOTTOMLEFT")
+    bar.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bar.fill:SetWidth(1)
+
+    -- ★ 底层 Frame：正常数据条
     bar.statusbar = CreateFrame("StatusBar", nil, bar.frame)
-    bar.statusbar:SetPoint("TOPLEFT"); bar.statusbar:SetPoint("BOTTOMRIGHT")
-    bar.statusbar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8"); bar.statusbar:SetMinMaxValues(0, 1); bar.statusbar:Hide()
-    bar.textFrame = CreateFrame("Frame", nil, bar.frame); bar.textFrame:SetAllPoints()
-    bar.textFrame:SetFrameLevel(bar.statusbar:GetFrameLevel() + 2)
-    bar.specIcon = bar.frame:CreateTexture(nil, "OVERLAY"); bar.specIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92); bar.specIcon:Hide()
-    bar.rank = self:FS(bar.textFrame, 9, "OUTLINE"); bar.rank:SetPoint("LEFT",3,0); bar.rank:SetJustifyH("RIGHT"); bar.rank:SetTextColor(1.0, 1.0, 1.0, 0.9)
-    bar.name = self:FS(bar.textFrame, 10, "OUTLINE"); bar.name:SetJustifyH("LEFT"); bar.name:SetWordWrap(false)
-    bar.value = self:FS(bar.textFrame, 9, "OUTLINE"); bar.value:SetJustifyH("RIGHT")
-    bar.hl = bar.frame:CreateTexture(nil,"HIGHLIGHT"); bar.hl:SetAllPoints(); bar.hl:SetColorTexture(1, 1, 1, 0.05)
-    bar.section = section; bar.index = index
+    bar.statusbar:SetPoint("TOPLEFT")
+    bar.statusbar:SetPoint("BOTTOMRIGHT")
+    bar.statusbar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    bar.statusbar:SetMinMaxValues(0, 1)
+    bar.statusbar:SetFrameLevel(bar.frame:GetFrameLevel() + 1)
+    bar.statusbar:Hide()
+
+    local sbTex = bar.statusbar:GetStatusBarTexture()
+    if sbTex then
+        sbTex:SetDrawLayer("BORDER", 1)
+    end
+
+    -- ★ 上层：所有文字和 icon 都放这里，保证盖在 bar 上面
+    bar.textFrame = CreateFrame("Frame", nil, bar.frame)
+    bar.textFrame:SetAllPoints()
+    bar.textFrame:SetFrameLevel(bar.frame:GetFrameLevel() + 5)
+
+    -- ★ icon 放在 textFrame 上，而不是 bar.frame 上
+    bar.specIcon = bar.textFrame:CreateTexture(nil, "OVERLAY", nil, 7)
+    bar.specIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    bar.specIcon:Hide()
+
+    bar.rank = self:FS(bar.textFrame, 9, "OUTLINE")
+    bar.rank:SetPoint("LEFT", 3, 0)
+    bar.rank:SetJustifyH("RIGHT")
+    bar.rank:SetTextColor(1.0, 1.0, 1.0, 0.9)
+
+    bar.name = self:FS(bar.textFrame, 10, "OUTLINE")
+    bar.name:SetJustifyH("LEFT")
+    bar.name:SetWordWrap(false)
+
+    bar.value = self:FS(bar.textFrame, 9, "OUTLINE")
+    bar.value:SetJustifyH("RIGHT")
+
+    -- ★ 高亮最高层
+    bar.hl = bar.frame:CreateTexture(nil, "HIGHLIGHT")
+    bar.hl:SetAllPoints()
+    bar.hl:SetColorTexture(1, 1, 1, 0.05)
+
+    bar.section = section
+    bar.index = index
 
     bar.frame:SetScript("OnClick", function(self2, btn)
         if btn == "RightButton" then ns.db.display.mode = ns:NextMode(ns.db.display.mode); if ns.UI then ns.UI:Layout() end; return end

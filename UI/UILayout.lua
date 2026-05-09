@@ -134,26 +134,77 @@ function UI:DoLayout(retryCount)
 end
 
 function UI:AnchorBarTexts(bar)
-    local rowH = ns.db.display.barHeight or 18; local iconSize = rowH
-    local hash = (ns.db.display.showSpecIcon and "1" or "0") .. "|" .. rowH .. "|" .. (ns.db.display.barThickness or rowH) .. "|" .. (ns.db.display.barVOffset or 0)
-    if bar._anchorHash == hash then return end; bar._anchorHash = hash
-    local thickness = ns.db.display.barThickness or rowH; local vOffset = ns.db.display.barVOffset or 0
+    local rowH = ns.db.display.barHeight or 18
+    local iconSize = rowH
+    local thickness = ns.db.display.barThickness or rowH
+    local vOffset = ns.db.display.barVOffset or 0
+    local showIcon = ns.db.display.showSpecIcon
 
-    if ns.db.display.showSpecIcon then
-        bar.specIcon:SetSize(iconSize, iconSize); bar.specIcon:ClearAllPoints(); bar.specIcon:SetPoint("LEFT", bar.frame, "LEFT", 2, 0)
-        local offset = iconSize + 4
-        bar.bg:ClearAllPoints(); bar.bg:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset); bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset); bar.bg:SetHeight(thickness)
-        bar.fill:ClearAllPoints(); bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset); bar.fill:SetHeight(thickness)
-        bar.statusbar:ClearAllPoints(); bar.statusbar:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset); bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset); bar.statusbar:SetHeight(thickness)
-        bar.textFrame:ClearAllPoints(); bar.textFrame:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0); bar.textFrame:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
+    local hash = (showIcon and "1" or "0")
+        .. "|" .. rowH
+        .. "|" .. thickness
+        .. "|" .. vOffset
+        .. "|" .. tostring(bar.frame:GetFrameLevel())
+
+    if bar._anchorHash == hash then return end
+    bar._anchorHash = hash
+
+    -- ★ 强制层级：数据条在底，文字/icon 在上
+    bar.statusbar:SetFrameLevel(bar.frame:GetFrameLevel() + 1)
+    bar.textFrame:SetFrameLevel(bar.frame:GetFrameLevel() + 5)
+
+    local offset = 0
+
+    if showIcon then
+        bar.specIcon:SetSize(iconSize, iconSize)
+        bar.specIcon:ClearAllPoints()
+        bar.specIcon:SetPoint("LEFT", bar.frame, "LEFT", 2, 0)
+        bar.specIcon:SetDrawLayer("OVERLAY", 7)
+
+        offset = iconSize + 4
     else
         bar.specIcon:Hide()
-        bar.bg:ClearAllPoints(); bar.bg:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset); bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset); bar.bg:SetHeight(thickness)
-        bar.fill:ClearAllPoints(); bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset); bar.fill:SetHeight(thickness)
-        bar.statusbar:ClearAllPoints(); bar.statusbar:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", 0, vOffset); bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset); bar.statusbar:SetHeight(thickness)
-        bar.textFrame:ClearAllPoints(); bar.textFrame:SetAllPoints(bar.frame)
+        offset = 0
     end
-    bar.rank:ClearAllPoints(); bar.rank:SetPoint("LEFT", bar.textFrame, "LEFT", 3, 0)
-    bar.value:ClearAllPoints(); bar.value:SetPoint("RIGHT", bar.textFrame, "RIGHT", -2, 0)
-    bar.name:ClearAllPoints(); bar.name:SetPoint("LEFT", bar.rank, "RIGHT", 3, 0); bar.name:SetPoint("RIGHT", bar.value, "LEFT", -5, 0)
+
+    -- ★ 数据条不铺满，仍然从 icon 后面开始
+    bar.bg:ClearAllPoints()
+    bar.bg:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+    bar.bg:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+    bar.bg:SetHeight(thickness)
+    bar.bg:SetDrawLayer("BACKGROUND", 0)
+
+    bar.fill:ClearAllPoints()
+    bar.fill:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+    bar.fill:SetHeight(thickness)
+    bar.fill:SetDrawLayer("BORDER", 0)
+
+    bar.statusbar:ClearAllPoints()
+    bar.statusbar:SetPoint("BOTTOMLEFT", bar.frame, "BOTTOMLEFT", offset, vOffset)
+    bar.statusbar:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, vOffset)
+    bar.statusbar:SetHeight(thickness)
+
+    local tex = bar.statusbar:GetStatusBarTexture()
+    if tex then
+        tex:SetDrawLayer("BORDER", 1)
+    end
+
+    -- ★ 文字区域也从 icon 后面开始；没 icon 时自然靠左
+    bar.textFrame:ClearAllPoints()
+    if showIcon then
+        bar.textFrame:SetPoint("TOPLEFT", bar.frame, "TOPLEFT", offset, 0)
+        bar.textFrame:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMRIGHT", 0, 0)
+    else
+        bar.textFrame:SetAllPoints(bar.frame)
+    end
+
+    bar.rank:ClearAllPoints()
+    bar.rank:SetPoint("LEFT", bar.textFrame, "LEFT", 3, 0)
+
+    bar.value:ClearAllPoints()
+    bar.value:SetPoint("RIGHT", bar.textFrame, "RIGHT", -2, 0)
+
+    bar.name:ClearAllPoints()
+    bar.name:SetPoint("LEFT", bar.rank, "RIGHT", 3, 0)
+    bar.name:SetPoint("RIGHT", bar.value, "LEFT", -5, 0)
 end
