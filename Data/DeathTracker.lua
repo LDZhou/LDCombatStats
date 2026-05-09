@@ -13,6 +13,36 @@ local playerBuffers = {}
 local BUFFER_SIZE   = 20
 
 -- ============================================================
+-- 获取死亡记录用的专精图标
+-- 优先自己当前专精，其次 PlayerInfoCache 里的 specID
+-- ============================================================
+local function GetDeathSpecIconID(guid)
+    if not guid then return nil end
+
+    -- 自己：直接取当前专精图标，最稳
+    if guid == ns.state.playerGUID then
+        local specIdx = GetSpecialization()
+        if specIdx then
+            local _, _, _, icon = GetSpecializationInfo(specIdx)
+            if icon and icon > 0 then
+                return icon
+            end
+        end
+    end
+
+    -- 队友：尝试从已有玩家信息缓存拿 specID 再转图标
+    local cache = ns.PlayerInfoCache and ns.PlayerInfoCache[guid]
+    if cache and cache.specID then
+        local _, _, _, icon = GetSpecializationInfoByID(cache.specID)
+        if icon and icon > 0 then
+            return icon
+        end
+    end
+
+    return nil
+end
+
+-- ============================================================
 -- 初始化
 -- ============================================================
 function DT:Init()
@@ -195,6 +225,7 @@ function DT:OnUnitDied(guid, name, flags, cleuTimestamp)
         totalHealingReceived = totalHeal,
         timeSpan             = timeSpan,
         _fromRecap           = false,
+        _specIconID          = GetDeathSpecIconID(guid),
     }
 
     local function addToSeg(seg)
@@ -284,6 +315,7 @@ function DT:RefreshSelfDeathFromRecap()
         totalHealingReceived = totalHeal,
         timeSpan             = timeSpan,
         _fromRecap           = true,
+        _specIconID          = GetDeathSpecIconID(pGUID),
     }
 
     local function updateSeg(seg)

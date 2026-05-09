@@ -171,9 +171,11 @@ local function processArchivedSessions()
                 sid, Enum.DamageMeterType.Deaths)
             if ok2 and deathSession and deathSession.combatSources then
                 for _, src in ipairs(deathSession.combatSources) do
-                    local guid    = src.sourceGUID
-                    local deaths  = getAmount(src.totalAmount)
-                    local recapID = getAmount(src.deathRecapID)
+                    local guid       = src.sourceGUID
+                    local deaths     = getAmount(src.totalAmount)
+                    local recapID    = getAmount(src.deathRecapID)
+                    local specIconID = getAmount(src.specIconID) -- ★ 新增：死亡来源也保存专精图标
+
                     if guid and (deaths > 0 or recapID > 0) and recapID > 0 then
                         local class = src.classFilename
                         if not class then
@@ -184,7 +186,14 @@ local function processArchivedSessions()
                                 class = (ok and ce) or "WARRIOR"
                             end
                         end
+
                         local deathRecord = buildDeathRecordFromRecapID(recapID, guid, src.name, class)
+
+                        -- ★ 新增：给死亡条 UI 用
+                        if deathRecord and specIconID > 0 then
+                            deathRecord._specIconID = specIconID
+                        end
+
                         if deathRecord then
                             local insertIdx = deathRecord.isSelf and 1 or (#seg.deathLog + 1)
                             if not deathRecord.isSelf then
